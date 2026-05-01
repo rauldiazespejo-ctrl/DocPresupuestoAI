@@ -28,6 +28,12 @@ def _auth_message(provider: str) -> str:
             "OpenAI respondió 401 (API key inválida o revocada). "
             "Revisa la clave en https://platform.openai.com y actualízala en «Configurar IA»."
         )
+    if provider == "gemini":
+        return (
+            "Gemini rechazó la API key (403/401). "
+            "Crea una clave en https://aistudio.google.com/app/apikey (Google AI Studio), "
+            "no uses la contraseña de cuenta: pégala en «Configurar IA»."
+        )
     return (
         "El proveedor de IA rechazó la autenticación (401). "
         "Actualiza la API key en «Configurar IA»."
@@ -52,9 +58,60 @@ class AIEngine:
         elif provider == "anthropic":
             self.model = model or "claude-3-5-sonnet-20241022"
             self.client = anthropic.Anthropic(api_key=api_key)
+        elif provider == "gemini":
+            try:
+                import google.generativeai as genai
+            except ImportError as e:
+                raise RuntimeError(
+                    "Falta el paquete google-generativeai. Ejecuta: pip install google-generativeai"
+                ) from e
+            genai.configure(api_key=api_key)
+            self.model = model or "gemini-2.0-flash"
+            self.client = None
+            self._gemini = genai.GenerativeModel(self.model)
+        else:
+            raise ValueError(
+                f"Proveedor de IA no soportado: {provider!r}. "
+                "Usa: openai, zai, anthropic o gemini."
+            )
+
+    def _call_gemini(self, prompt: str, max_tokens: int) -> str:
+        from google.api_core import exceptions as google_exc
+
+        try:
+            resp = self._gemini.generate_content(
+                prompt,
+                generation_config={
+                    "max_output_tokens": max_tokens,
+                    "temperature": 0.3,
+                },
+            )
+        except google_exc.PermissionDenied as e:
+            raise IAAuthError(_auth_message("gemini")) from e
+        except google_exc.Unauthenticated as e:
+            raise IAAuthError(_auth_message("gemini")) from e
+        except google_exc.ResourceExhausted as e:
+            raise IARateLimitError(
+                "Límite de uso en Gemini (429). Espera unos minutos o revisa cuota en Google AI Studio."
+            ) from e
+        except google_exc.GoogleAPIError as e:
+            raise RuntimeError(f"Error API Gemini: {e}") from e
+
+        if not getattr(resp, "candidates", None):
+            raise RuntimeError(
+                "Gemini no devolvió candidatos (bloqueo de seguridad o prompt vacío). "
+                "Acorta el texto o revisa el contenido."
+            )
+        text = (getattr(resp, "text", None) or "").strip()
+        if not text:
+            raise RuntimeError("Gemini devolvió respuesta vacía. Reintenta o cambia de modelo.")
+        return text
 
     def _call_llm(self, prompt: str, max_tokens: int = 4096) -> str:
         try:
+            if self.provider == "gemini":
+                return self._call_gemini(prompt, max_tokens)
+
             if self.provider in {"openai", "zai"}:
                 response = self.client.chat.completions.create(
                     model=self.model,

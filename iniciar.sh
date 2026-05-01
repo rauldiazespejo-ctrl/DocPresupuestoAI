@@ -16,7 +16,7 @@ echo ""
 python3 -c "import fastapi,uvicorn,openai,reportlab,sqlalchemy,pdfplumber" 2>/dev/null
 if [ $? -ne 0 ]; then
   echo "⚠️  Instalando dependencias..."
-  pip3 install fastapi uvicorn python-multipart openai anthropic pdfplumber python-docx reportlab openpyxl Pillow sqlalchemy aiofiles jinja2 -q
+  pip3 install fastapi uvicorn python-multipart openai anthropic google-generativeai pdfplumber python-docx reportlab openpyxl Pillow sqlalchemy aiofiles jinja2 -q
 fi
 
 echo "🚀 Iniciando servidor backend en http://localhost:8000"

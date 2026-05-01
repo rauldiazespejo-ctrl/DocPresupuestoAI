@@ -34,6 +34,8 @@ pyinstaller \
   --collect-all=uvicorn \
   --collect-all=fastapi \
   --collect-all=starlette \
+  --hidden-import=google.generativeai \
+  --collect-all=google.generativeai \
   "$ROOT_DIR/desktop/app_desktop.py"
 
 PLIST_PATH="${APP_PATH}/Contents/Info.plist"

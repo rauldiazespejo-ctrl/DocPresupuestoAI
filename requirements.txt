@@ -1,0 +1,15 @@
+# Backend y scripts locales (ver también iniciar.sh / desktop)
+fastapi
+uvicorn[standard]
+python-multipart
+openai
+anthropic
+google-generativeai>=0.8.0
+pdfplumber
+python-docx
+reportlab
+openpyxl
+Pillow
+sqlalchemy
+aiofiles
+jinja2
