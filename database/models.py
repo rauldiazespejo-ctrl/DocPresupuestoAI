@@ -105,6 +105,18 @@ class HistoricoLicitacion(Base):
     observaciones = Column(Text, default="")
     fecha_creacion = Column(DateTime, default=datetime.utcnow)
 
+class LegalAceptacionProyecto(Base):
+    __tablename__ = "legal_aceptaciones_proyecto"
+    id = Column(Integer, primary_key=True, index=True)
+    proyecto_id = Column(Integer, index=True)
+    accepted = Column(Boolean, default=False)
+    accepted_at = Column(DateTime, default=datetime.utcnow, index=True)
+    terms_version = Column(String, default="v1.0.0")
+    accepted_source = Column(String, default="frontend-local")
+    accepted_by = Column(String, default="")
+    metadata_json = Column(JSON)
+    fecha_registro = Column(DateTime, default=datetime.utcnow)
+
 def create_tables():
     Base.metadata.create_all(bind=engine)
     # Migracion ligera para sqlite local: agregar columnas nuevas sin romper BD existente.

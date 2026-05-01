@@ -32,6 +32,7 @@ from database.models import (
     RequisitoDocumental,
     EvidenciaRequisito,
     HistoricoLicitacion,
+    LegalAceptacionProyecto,
 )
 from backend.extractor import extract_text
 from backend.ai_engine import AIEngine
@@ -76,6 +77,7 @@ SECCIONES_DOCUMENTALES = [
     ("6_ANT. FACT", "facturacion"),
 ]
 CODIGO_LICITACION_REGEX = re.compile(r"^OT_[0-9]{8}_[A-Z0-9]+(?:_[A-Z0-9]+)*$")
+LEGAL_TERMS_CURRENT_VERSION = "v1.0.0"
 
 
 def _slugify(texto: str) -> str:
@@ -197,6 +199,15 @@ class RequisitoDocumentalRequest(BaseModel):
 class RequisitoDocumentalUpdateRequest(BaseModel):
     estado: str = "pendiente"
     observaciones: str = ""
+
+
+class LegalAceptacionRequest(BaseModel):
+    accepted: bool = True
+    terms_version: str = LEGAL_TERMS_CURRENT_VERSION
+    accepted_at: Optional[str] = None
+    accepted_source: str = "frontend-local"
+    accepted_by: str = ""
+    metadata: dict = Field(default_factory=dict)
 
 # ─── Configuración IA en memoria (sesión) ─────────────────────────────────────
 ia_config = {}
@@ -392,6 +403,7 @@ async def eliminar_proyecto(proyecto_id: int, db: Session = Depends(get_db)):
     proyecto = db.query(Proyecto).filter(Proyecto.id == proyecto_id).first()
     if not proyecto:
         raise HTTPException(status_code=404, detail="Proyecto no encontrado")
+    db.query(LegalAceptacionProyecto).filter(LegalAceptacionProyecto.proyecto_id == proyecto_id).delete()
     db.delete(proyecto)
     db.commit()
     return {"message": "Proyecto eliminado"}
@@ -409,9 +421,80 @@ async def reset_demo_data(db: Session = Depends(get_db)):
     db.query(PrediccionAdjudicacion).delete()
     db.query(OfertaLicitacion).delete()
     db.query(HistoricoLicitacion).delete()
+    db.query(LegalAceptacionProyecto).delete()
     db.query(Proyecto).delete()
     db.commit()
     return {"message": "Datos demo reiniciados"}
+
+
+@app.get("/api/proyectos/{proyecto_id}/legal-aceptacion")
+async def obtener_aceptacion_legal_proyecto(proyecto_id: int, db: Session = Depends(get_db)):
+    proyecto = db.query(Proyecto).filter(Proyecto.id == proyecto_id).first()
+    if not proyecto:
+        raise HTTPException(status_code=404, detail="Proyecto no encontrado")
+    rec = (
+        db.query(LegalAceptacionProyecto)
+        .filter(LegalAceptacionProyecto.proyecto_id == proyecto_id)
+        .order_by(LegalAceptacionProyecto.accepted_at.desc(), LegalAceptacionProyecto.id.desc())
+        .first()
+    )
+    if not rec:
+        return {
+            "proyecto_id": proyecto_id,
+            "aceptado": False,
+            "accepted_at": None,
+            "terms_version": LEGAL_TERMS_CURRENT_VERSION,
+            "accepted_source": "",
+            "accepted_by": "",
+            "metadata": {},
+        }
+    return {
+        "proyecto_id": proyecto_id,
+        "aceptado": bool(rec.accepted),
+        "accepted_at": rec.accepted_at.isoformat() if rec.accepted_at else None,
+        "terms_version": rec.terms_version or LEGAL_TERMS_CURRENT_VERSION,
+        "accepted_source": rec.accepted_source or "",
+        "accepted_by": rec.accepted_by or "",
+        "metadata": rec.metadata_json or {},
+    }
+
+
+@app.post("/api/proyectos/{proyecto_id}/legal-aceptacion")
+async def registrar_aceptacion_legal_proyecto(
+    proyecto_id: int,
+    req: LegalAceptacionRequest,
+    db: Session = Depends(get_db),
+):
+    proyecto = db.query(Proyecto).filter(Proyecto.id == proyecto_id).first()
+    if not proyecto:
+        raise HTTPException(status_code=404, detail="Proyecto no encontrado")
+    accepted_at = datetime.utcnow()
+    if req.accepted_at:
+        try:
+            parsed = datetime.fromisoformat(req.accepted_at.replace("Z", "+00:00"))
+            accepted_at = parsed.replace(tzinfo=None) if parsed.tzinfo else parsed
+        except Exception:
+            accepted_at = datetime.utcnow()
+
+    rec = LegalAceptacionProyecto(
+        proyecto_id=proyecto_id,
+        accepted=bool(req.accepted),
+        accepted_at=accepted_at,
+        terms_version=(req.terms_version or LEGAL_TERMS_CURRENT_VERSION).strip(),
+        accepted_source=(req.accepted_source or "frontend-local").strip(),
+        accepted_by=(req.accepted_by or "").strip(),
+        metadata_json=req.metadata or {},
+    )
+    db.add(rec)
+    db.commit()
+    db.refresh(rec)
+    return {
+        "proyecto_id": proyecto_id,
+        "aceptado": bool(rec.accepted),
+        "accepted_at": rec.accepted_at.isoformat() if rec.accepted_at else None,
+        "terms_version": rec.terms_version,
+        "accepted_source": rec.accepted_source,
+    }
 
 
 @app.post("/api/demo/seed")
@@ -851,6 +934,16 @@ async def ejecutar_preflight_entrega(proyecto_id: int, db: Session = Depends(get
 
     qa_docs = [_qa_check_document(d) for d in docs]
     score_qa = round(sum(x["score_qa"] for x in qa_docs) / len(qa_docs), 2) if qa_docs else 0.0
+    legal_rec = (
+        db.query(LegalAceptacionProyecto)
+        .filter(LegalAceptacionProyecto.proyecto_id == proyecto_id)
+        .order_by(LegalAceptacionProyecto.accepted_at.desc(), LegalAceptacionProyecto.id.desc())
+        .first()
+    )
+    legal_aceptado = bool(legal_rec and legal_rec.accepted)
+    legal_terms_version = legal_rec.terms_version if legal_rec else LEGAL_TERMS_CURRENT_VERSION
+    legal_al_dia = legal_aceptado and legal_terms_version == LEGAL_TERMS_CURRENT_VERSION
+
     brechas_qa = []
     plan_cierre = []
     for ev in qa_docs:
@@ -862,12 +955,19 @@ async def ejecutar_preflight_entrega(proyecto_id: int, db: Session = Depends(get
 
     score_global = round((score_readiness * 0.55) + (score_qa * 0.45), 2)
     brechas_criticas = brechas_readiness + brechas_qa
+    if not legal_al_dia:
+        brechas_criticas.append("Falta aceptación legal vigente del proyecto.")
+        plan_cierre.insert(0, "Registrar aceptación legal del proyecto en versión vigente de términos.")
+
     if score_global >= 85 and len(brechas_criticas) <= 2:
         estado_final = "apto"
     elif score_global >= 70:
         estado_final = "condicional"
     else:
         estado_final = "no_apto"
+
+    if estado_final == "apto" and not legal_al_dia:
+        estado_final = "condicional"
 
     apto_para_cliente = estado_final == "apto"
     if not plan_cierre and not apto_para_cliente:
@@ -884,6 +984,13 @@ async def ejecutar_preflight_entrega(proyecto_id: int, db: Session = Depends(get
         "score_global": score_global,
         "score_readiness": score_readiness,
         "score_qa": score_qa,
+        "legal": {
+            "aceptado": legal_aceptado,
+            "al_dia": legal_al_dia,
+            "terms_version_actual": LEGAL_TERMS_CURRENT_VERSION,
+            "terms_version_aceptada": legal_terms_version,
+            "accepted_at": legal_rec.accepted_at.isoformat() if legal_rec and legal_rec.accepted_at else None,
+        },
         "brechas_criticas": brechas_criticas,
         "plan_cierre": plan_cierre[:8],
         "mensaje": (

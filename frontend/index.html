@@ -1089,6 +1089,52 @@ function estaLegalAceptado() {
   return localStorage.getItem('docpresupuesto_legal_v1') === 'accepted';
 }
 
+function obtenerProyectoActivoId() {
+  if(estado.proyectoActual && estado.proyectoActual.id) return estado.proyectoActual.id;
+  const selGen = document.getElementById('selectProyectoGenerar');
+  if(selGen && selGen.value) return parseInt(selGen.value);
+  return null;
+}
+
+async function registrarAceptacionLegalProyecto(proyectoId) {
+  const meta = obtenerMetaLegal();
+  if(!proyectoId || !meta || !meta.accepted) return;
+  try {
+    await apiFetch(
+      `/api/proyectos/${proyectoId}/legal-aceptacion`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          accepted: true,
+          accepted_at: meta.accepted_at || new Date().toISOString(),
+          terms_version: meta.terms_version || LEGAL_TERMS_VERSION,
+          accepted_source: 'frontend-ui',
+          accepted_by: 'usuario-local',
+          metadata: { ui: 'modalLegal' }
+        })
+      },
+      { context: 'Registro legal de proyecto', timeoutMs: 10000 }
+    );
+  } catch (_) {
+    // noop: no bloquear flujo principal por trazabilidad legal
+  }
+}
+
+async function sincronizarLegalProyectoUI(proyectoId) {
+  if(!proyectoId) return;
+  try {
+    const data = await apiFetch(`/api/proyectos/${proyectoId}/legal-aceptacion`, {}, { context: 'Estado legal de proyecto', timeoutMs: 8000 });
+    if(data && data.aceptado) {
+      estado.legalAceptado = true;
+      guardarMetaLegal(true);
+      actualizarEstadoLegalUI();
+    }
+  } catch (_) {
+    // noop
+  }
+}
+
 let estado = {
   proyectos: [],
   proyectoActual: null,
@@ -1289,6 +1335,8 @@ function aceptarTerminos() {
   cerrarModal('modalLegal');
   actualizarEstadoLegalUI();
   renderChecklistOnboarding();
+  const proyectoId = obtenerProyectoActivoId();
+  if(proyectoId) registrarAceptacionLegalProyecto(proyectoId);
   mostrarAlerta('alertArea', 'success', 'Términos legales aceptados correctamente.');
 }
 
@@ -1640,6 +1688,7 @@ async function subirDocumento() {
     hideLoader();
     
     mostrarAlerta('alertNuevo','success',`✅ Proyecto "${nombre}" creado y analizado exitosamente`);
+    await registrarAceptacionLegalProyecto(data.proyecto_id);
     clearFile();
     document.getElementById('inputNombreProyecto').value='';
     document.getElementById('inputCodigoLicitacion').value='';
@@ -2645,6 +2694,8 @@ function renderHistorialPredicciones(predicciones) {
 async function cargarDatosProyectoGenerar() {
   const id = document.getElementById('selectProyectoGenerar').value;
   if(!id){ document.getElementById('panelDatosExtraidos').classList.add('hidden'); return; }
+  const proyectoSel = (estado.proyectos || []).find(p => p.id === parseInt(id));
+  if(proyectoSel) estado.proyectoActual = proyectoSel;
   
   try {
     const res = await fetch(`${API}/api/proyectos/${id}/datos`);
@@ -2655,6 +2706,7 @@ async function cargarDatosProyectoGenerar() {
     const docRes = await fetch(`${API}/api/proyectos/${id}/documentos`);
     const docs = await docRes.json();
     renderDocumentosGenerados(docs);
+    await sincronizarLegalProyectoUI(parseInt(id));
   } catch(e){ console.error(e); }
 }
 
@@ -2930,13 +2982,7 @@ async function evaluarReadinessProyectoActual() {
 }
 
 async function ejecutarPreflightEntrega() {
-  let proyectoId = null;
-  if(estado.proyectoActual && estado.proyectoActual.id) {
-    proyectoId = estado.proyectoActual.id;
-  } else {
-    const selGen = document.getElementById('selectProyectoGenerar');
-    if(selGen && selGen.value) proyectoId = parseInt(selGen.value);
-  }
+  let proyectoId = obtenerProyectoActivoId();
   if(!proyectoId) {
     mostrarAlerta('alertArea', 'warning', 'Selecciona un proyecto para ejecutar preflight de entrega.');
     return;
@@ -2949,10 +2995,13 @@ async function ejecutarPreflightEntrega() {
     const tipo = data.apto_para_cliente ? 'success' : (data.estado_final === 'condicional' ? 'warning' : 'error');
     const brechas = (data.brechas_criticas || []).slice(0, 4).map(x => `• ${x}`).join('<br/>');
     const acciones = (data.plan_cierre || []).slice(0, 4).map(x => `• ${x}`).join('<br/>');
+    const legal = data.legal || {};
+    const legalEstado = legal.al_dia ? '✅ Legal vigente' : '⚠️ Legal pendiente';
     mostrarAlerta(
       'alertArea',
       tipo,
       `🛫 Preflight: <b>${estadoFinal}</b> · Score global ${data.score_global || 0}/100<br/>${data.mensaje || ''}` +
+      `<br/>${legalEstado}` +
       `${brechas ? `<br/><br/><b>Brechas críticas:</b><br/>${brechas}` : ''}` +
       `${acciones ? `<br/><br/><b>Plan de cierre:</b><br/>${acciones}` : ''}`
     );
