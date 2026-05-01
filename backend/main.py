@@ -422,8 +422,7 @@ async def listar_proyectos(db: Session = Depends(get_db)):
     return salida
 
 
-@app.get("/api/dashboard/ejecutivo")
-async def dashboard_ejecutivo(db: Session = Depends(get_db)):
+async def _build_dashboard_ejecutivo_data(db: Session) -> dict:
     proyectos = db.query(Proyecto).order_by(Proyecto.fecha_creacion.desc()).all()
     semaforos = []
     for p in proyectos:
@@ -485,6 +484,43 @@ async def dashboard_ejecutivo(db: Session = Depends(get_db)):
         "top_acciones_criticas": top_criticas,
         "acciones_cierre_abiertas": acciones_cierre_abiertas,
     }
+
+
+@app.get("/api/dashboard/ejecutivo")
+async def dashboard_ejecutivo(db: Session = Depends(get_db)):
+    return await _build_dashboard_ejecutivo_data(db)
+
+
+def _orden_comite_semaforo(row: dict) -> tuple:
+    sm = row.get("semaforo") or {}
+    color = (sm.get("color") or "amarillo").lower()
+    rank = {"rojo": 0, "amarillo": 1, "verde": 2}.get(color, 1)
+    venc = int(sm.get("vencidas") or 0)
+    avance = float(sm.get("avance_pct") or 0)
+    return (rank, -venc, avance)
+
+
+@app.get("/api/dashboard/comite-pdf")
+async def exportar_comite_pdf(db: Session = Depends(get_db)):
+    from backend.generator import generar_informe_comite_pdf
+
+    data = await _build_dashboard_ejecutivo_data(db)
+    data_pdf = dict(data)
+    data_pdf["semaforos"] = sorted(list(data.get("semaforos") or []), key=_orden_comite_semaforo)
+
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = f"Informe_Comite_Entrega_{ts}.pdf"
+    output_path = EXPORTS_DIR / filename
+    try:
+        generar_informe_comite_pdf(data_pdf, str(output_path))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error generando PDF de comité: {str(e)}")
+
+    return FileResponse(
+        path=str(output_path),
+        filename=filename,
+        media_type="application/pdf",
+    )
 
 @app.get("/api/proyectos/{proyecto_id}")
 async def obtener_proyecto(proyecto_id: int, db: Session = Depends(get_db)):

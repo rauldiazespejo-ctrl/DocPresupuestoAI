@@ -986,3 +986,220 @@ def generar_indice_documental_pdf(
     story.append(tabla)
     doc.build(story)
     return output_path
+
+
+def _xml_para(text) -> str:
+    if text is None:
+        return ""
+    return str(text).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+
+def _safe_table_cell(val) -> str:
+    """Texto plano para celdas Table (sin entidades XML)."""
+    if val is None:
+        return ""
+    return str(val).replace("\x00", "")
+
+
+def _fmt_fecha_iso_corta(iso: str | None) -> str:
+    if not iso:
+        return "—"
+    try:
+        dt = datetime.fromisoformat(iso.replace("Z", "+00:00"))
+        return dt.strftime("%d/%m/%Y")
+    except Exception:
+        return str(iso)[:10]
+
+
+def generar_informe_comite_pdf(data: dict, output_path: str) -> str:
+    """
+    Informe ejecutivo portfolio: KPIs, top riesgos, cartera y plan de cierre (PDF).
+    `data` debe alinearse con GET /api/dashboard/ejecutivo (+ semáforos ordenados si aplica).
+    """
+    doc = SimpleDocTemplate(
+        output_path,
+        pagesize=A4,
+        rightMargin=1.8 * cm,
+        leftMargin=1.8 * cm,
+        topMargin=1.8 * cm,
+        bottomMargin=1.8 * cm,
+    )
+    estilo_sub = ParagraphStyle(
+        "ComiteSub",
+        fontSize=10,
+        textColor=COLOR_TEXTO,
+        alignment=TA_CENTER,
+        spaceAfter=14,
+        fontName="Helvetica",
+    )
+    estilo_h2 = ParagraphStyle(
+        "ComiteH2",
+        fontSize=12,
+        textColor=COLOR_SECUNDARIO,
+        spaceAfter=8,
+        spaceBefore=10,
+        fontName="Helvetica-Bold",
+    )
+    estilo_cuerpo = ParagraphStyle(
+        "ComiteCuerpo",
+        fontSize=9,
+        leading=13,
+        spaceAfter=5,
+        fontName="Helvetica",
+        textColor=COLOR_TEXTO,
+    )
+
+    sems = data.get("semaforos") or []
+    rojos = sum(1 for x in sems if (x.get("semaforo") or {}).get("color") == "rojo")
+    amarillos = sum(1 for x in sems if (x.get("semaforo") or {}).get("color") == "amarillo")
+    verdes = sum(1 for x in sems if (x.get("semaforo") or {}).get("color") == "verde")
+    aptos = sum(1 for x in sems if (x.get("semaforo") or {}).get("estado_preflight") == "apto")
+    total = int(data.get("proyectos_total") or len(sems) or 0)
+    aptos_pct = round((aptos / total) * 100, 1) if total else 0.0
+
+    story = []
+    banner = Table([["INFORME COMITÉ DE ENTREGA"]], colWidths=[17.4 * cm])
+    banner.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, -1), COLOR_PRIMARIO),
+        ("TEXTCOLOR", (0, 0), (-1, -1), colors.white),
+        ("FONTNAME", (0, 0), (-1, -1), "Helvetica-Bold"),
+        ("FONTSIZE", (0, 0), (-1, -1), 16),
+        ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+        ("TOPPADDING", (0, 0), (-1, -1), 14),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 14),
+    ]))
+    story.append(banner)
+    story.append(Spacer(1, 0.4 * cm))
+    story.append(Paragraph("DocPresupuestoAI · Pulso AI", estilo_sub))
+    story.append(
+        Paragraph(
+            f"Fecha de emisión: {_fmt_fecha_larga()} · Cartera: <b>{total}</b> proyecto(s)",
+            estilo_sub,
+        )
+    )
+    story.append(Spacer(1, 0.3 * cm))
+
+    kpi_data = [
+        ["Riesgo alto (rojo)", "Atención (amarillo)", "Controlado (verde)", "% Preflight apto"],
+        [str(rojos), str(amarillos), str(verdes), f"{aptos_pct}%"],
+    ]
+    kpi_tab = Table(kpi_data, colWidths=[4.35 * cm, 4.35 * cm, 4.35 * cm, 4.35 * cm])
+    kpi_tab.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), COLOR_SECUNDARIO),
+        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("FONTSIZE", (0, 0), (-1, 0), 8),
+        ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+        ("FONTNAME", (0, 1), (-1, 1), "Helvetica-Bold"),
+        ("FONTSIZE", (0, 1), (-1, 1), 11),
+        ("ROWBACKGROUNDS", (0, 1), (-1, 1), [colors.white, COLOR_FONDO]),
+        ("GRID", (0, 0), (-1, -1), 0.35, colors.lightgrey),
+        ("TOPPADDING", (0, 0), (-1, -1), 6),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+    ]))
+    story.append(kpi_tab)
+    story.append(Spacer(1, 0.5 * cm))
+
+    story.append(Paragraph("Top riesgos operativos (acciones priorizadas)", estilo_h2))
+    tops = data.get("top_acciones_criticas") or []
+    if not tops:
+        story.append(Paragraph("Sin acciones críticas priorizadas en este momento.", estilo_cuerpo))
+    else:
+        for it in tops:
+            tit = _xml_para(it.get("titulo"))
+            pn = _xml_para(it.get("proyecto_nombre") or f"Proyecto {it.get('proyecto_id', '')}")
+            pr = _xml_para(str(it.get("prioridad") or "").upper())
+            ow = _xml_para(it.get("owner") or "equipo")
+            fc = _xml_para(_fmt_fecha_iso_corta(it.get("fecha_compromiso")))
+            story.append(
+                Paragraph(
+                    f"• <b>{tit}</b><br/>{pn} · Prioridad {pr} · Owner {ow} · SLA {fc}",
+                    estilo_cuerpo,
+                )
+            )
+    story.append(Spacer(1, 0.35 * cm))
+
+    story.append(Paragraph("Cartera de proyectos", estilo_h2))
+    rows_p = [["ID", "Proyecto", "OT / Código", "Cliente", "Semáforo", "Preflight", "Venc.", "Avance %"]]
+    for s in sems:
+        sm = s.get("semaforo") or {}
+        rows_p.append([
+            str(s.get("proyecto_id", "")),
+            _safe_table_cell(s.get("nombre") or ""),
+            _safe_table_cell(s.get("codigo_licitacion") or "—"),
+            _safe_table_cell(s.get("cliente") or "—"),
+            _safe_table_cell(sm.get("label") or "—"),
+            _safe_table_cell(str(sm.get("estado_preflight") or "—").upper()),
+            str(sm.get("vencidas") if sm.get("vencidas") is not None else "0"),
+            f"{float(sm.get('avance_pct') or 0):.0f}%" if sm.get("avance_pct") is not None else "—",
+        ])
+    if len(rows_p) == 1:
+        rows_p.append(["—", "(Sin proyectos)", "", "", "", "", "", ""])
+    tab_p = Table(
+        rows_p,
+        colWidths=[1.1 * cm, 3.6 * cm, 2.6 * cm, 2.5 * cm, 2.2 * cm, 2.0 * cm, 1.0 * cm, 1.3 * cm],
+        repeatRows=1,
+    )
+    tab_p.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), COLOR_PRIMARIO),
+        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("FONTSIZE", (0, 0), (-1, 0), 7),
+        ("FONTNAME", (0, 1), (-1, -1), "Helvetica"),
+        ("FONTSIZE", (0, 1), (-1, -1), 7),
+        ("GRID", (0, 0), (-1, -1), 0.25, colors.lightgrey),
+        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, COLOR_FONDO]),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("LEFTPADDING", (0, 0), (-1, -1), 3),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 3),
+    ]))
+    story.append(tab_p)
+    story.append(Spacer(1, 0.45 * cm))
+
+    story.append(Paragraph("Plan de cierre abierto (priorizado)", estilo_h2))
+    acc = data.get("acciones_cierre_abiertas") or []
+    rows_a = [["Proyecto", "Acción", "Prioridad", "Owner", "SLA", "Estado"]]
+    for i in acc:
+        est = str(i.get("estado") or "").replace("_", " ")
+        rows_a.append([
+            _safe_table_cell(i.get("proyecto_nombre") or f"#{i.get('proyecto_id', '')}"),
+            _safe_table_cell(i.get("titulo") or ""),
+            _safe_table_cell(str(i.get("prioridad") or "").upper()),
+            _safe_table_cell(i.get("owner") or "equipo"),
+            _safe_table_cell(_fmt_fecha_iso_corta(i.get("fecha_compromiso"))),
+            _safe_table_cell(est),
+        ])
+    if len(rows_a) == 1:
+        rows_a.append(["—", "(Sin acciones abiertas)", "", "", "", ""])
+    tab_a = Table(
+        rows_a,
+        colWidths=[3.8 * cm, 5.8 * cm, 2.0 * cm, 2.2 * cm, 2.0 * cm, 2.0 * cm],
+        repeatRows=1,
+    )
+    tab_a.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), COLOR_PRIMARIO),
+        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("FONTSIZE", (0, 0), (-1, 0), 7),
+        ("FONTNAME", (0, 1), (-1, -1), "Helvetica"),
+        ("FONTSIZE", (0, 1), (-1, -1), 7),
+        ("GRID", (0, 0), (-1, -1), 0.25, colors.lightgrey),
+        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, COLOR_FONDO]),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("LEFTPADDING", (0, 0), (-1, -1), 3),
+    ]))
+    story.append(tab_a)
+    story.append(Spacer(1, 0.6 * cm))
+    story.append(
+        Paragraph(
+            "Documento para uso interno. Indicadores según reglas locales de preflight, QA y plan de cierre.",
+            ParagraphStyle("ComitePie", fontSize=7, textColor=colors.grey, alignment=TA_CENTER),
+        )
+    )
+
+    doc.build(
+        story,
+        onFirstPage=lambda c, d: _draw_header_footer(c, d, "Informe Comité"),
+        onLaterPages=lambda c, d: _draw_header_footer(c, d, "Informe Comité"),
+    )
+    return output_path

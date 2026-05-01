@@ -1043,6 +1043,7 @@ tfoot td{padding:10px 14px;color:var(--blanco);font-weight:700;}
         <button class="btn btn-secondary btn-sm" onclick="navegar('dashboard')">← Volver al dashboard</button>
         <button class="btn btn-primary btn-sm" onclick="cargarVistaComite()">🔄 Actualizar datos</button>
         <button class="btn btn-primary btn-sm" onclick="window.print()">🖨️ Imprimir / PDF</button>
+        <button class="btn btn-secondary btn-sm" type="button" id="btnComitePdf" onclick="descargarComitePdf()">📄 Descargar PDF (servidor)</button>
       </div>
       <div id="comiteContenido" class="comite-sheet">
         <div class="comite-head">
@@ -1761,6 +1762,42 @@ function escapeHtmlComite(s) {
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
+}
+
+async function descargarComitePdf() {
+  const btn = document.getElementById('btnComitePdf');
+  const prev = btn ? btn.textContent : '';
+  if(btn) { btn.disabled = true; btn.textContent = 'Generando…'; }
+  try {
+    const res = await fetch(`${API}/api/dashboard/comite-pdf`, { method: 'GET' });
+    if(!res.ok) {
+      let msg = res.statusText || 'Error';
+      try { const j = await res.json(); if(j.detail) msg = typeof j.detail === 'string' ? j.detail : JSON.stringify(j.detail); } catch(_) { try { msg = await res.text(); } catch(__) {} }
+      throw new Error(msg);
+    }
+    const blob = await res.blob();
+    const cd = res.headers.get('Content-Disposition') || '';
+    let name = 'Informe_Comite_Entrega.pdf';
+    const mStar = cd.match(/filename\*=UTF-8''([^;\s]+)/i);
+    const mQ = cd.match(/filename="([^"]+)"/i);
+    const mBare = cd.match(/filename=([^;\s]+)/i);
+    if(mStar) try { name = decodeURIComponent(mStar[1]); } catch(_) {}
+    else if(mQ) name = mQ[1];
+    else if(mBare) name = mBare[1].replace(/^["']|["']$/g, '');
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = name;
+    a.rel = 'noopener';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  } catch(e) {
+    mostrarAlerta('alertComite', 'error', e.message || 'No se pudo generar el PDF de comité.');
+  } finally {
+    if(btn) { btn.disabled = false; btn.textContent = prev; }
+  }
 }
 
 async function cargarVistaComite() {
