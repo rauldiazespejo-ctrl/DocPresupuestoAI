@@ -1015,6 +1015,7 @@ tfoot td{padding:10px 14px;color:var(--blanco);font-weight:700;}
 ═══════════════════════════════════════════════════════════════════════════ */
 const API = 'http://localhost:8000';
 const LOCAL_IA_CONFIG = window.DOC_AI_LOCAL_CONFIG || null;
+const QA_GATE_MIN_SCORE = 85;
 const IA_CONFIG_STORAGE_KEY = 'docpresupuesto_ia';
 const IA_API_KEY_SESSION_KEY = 'docpresupuesto_ia_api_key_session';
 const LEGAL_ACCEPTANCE_STORAGE_KEY = 'docpresupuesto_legal_meta_v1';
@@ -1095,6 +1096,7 @@ let estado = {
   backendOnline: false,
   backendLastCheck: '',
   onboardingOmitido: localStorage.getItem('docpresupuesto_onboarding_omitido') === '1',
+  qualityMode: 'standard',
   tipoDocSeleccionado: null,
   escenariosSimulacion: [
     { nombre: 'Escenario 1', factores: {} },
@@ -2718,7 +2720,7 @@ function renderDocumentosGenerados(docs) {
         <div class="pmeta">${d.tipo} · ${new Date(d.fecha_creacion).toLocaleDateString('es-CL')}</div>
       </div>
       <div class="pactions">
-        <a href="${API}${d.download_url}" class="btn btn-success btn-sm" download>⬇️ Descargar</a>
+        <button class="btn btn-success btn-sm" onclick="descargarConQAGate(${d.id}, '${API}${d.download_url}', '${d.tipo}', ${d.proyecto_id || 0})">⬇️ Descargar</button>
         <button class="btn btn-secondary btn-sm" onclick="evaluarQADocumento(${d.id})">🧪 QA</button>
       </div>
     </div>
@@ -2741,10 +2743,60 @@ async function evaluarQADocumento(documentoId) {
       `${hallazgos ? `<br/><br/><b>Fortalezas:</b><br/>${hallazgos}` : ''}` +
       `${faltantes ? `<br/><br/><b>Brechas:</b><br/>${faltantes}` : ''}`
     );
+    return data;
   } catch (e) {
     hideLoader();
     mostrarAlerta('alertGenerar', 'error', e.message || 'No se pudo evaluar QA del documento.');
+    return null;
   }
+}
+
+function seleccionarDocTipoProgramatico(tipo) {
+  const indexByTipo = {
+    presupuesto_pdf: 0,
+    presupuesto_excel: 1,
+    informe_pdf: 2,
+    propuesta_pdf: 3
+  };
+  const idx = indexByTipo[tipo];
+  const cards = document.querySelectorAll('.doc-card');
+  if(typeof idx === 'number' && cards[idx]) {
+    seleccionarDocTipo(tipo, cards[idx]);
+  } else {
+    estado.tipoDocSeleccionado = tipo;
+  }
+}
+
+function activarRegeneracionPro(proyectoId, tipo) {
+  navegar('generar');
+  estado.qualityMode = 'pro';
+  setTimeout(()=>{
+    const sel = document.getElementById('selectProyectoGenerar');
+    if(sel) {
+      sel.value = String(proyectoId || '');
+      cargarDatosProyectoGenerar();
+    }
+    seleccionarDocTipoProgramatico(tipo);
+    mostrarAlerta('alertGenerar', 'info', 'Modo PRO activado. Genera nuevamente para elevar estándar de entrega.');
+  }, 220);
+}
+
+async function descargarConQAGate(documentoId, url, tipo, proyectoId) {
+  const qa = await evaluarQADocumento(documentoId);
+  if(!qa) return;
+  if((qa.score_qa || 0) < QA_GATE_MIN_SCORE) {
+    const recomendaciones = (qa.recomendaciones || []).slice(0, 3).map(x => `• ${x}`).join('<br/>');
+    mostrarAlerta(
+      'alertGenerar',
+      'warning',
+      `⚠️ QA bajo (${qa.score_qa}/100). Se recomienda regenerar antes de descargar.<br/>` +
+      `${recomendaciones ? `<br/><b>Acciones sugeridas:</b><br/>${recomendaciones}<br/>` : ''}` +
+      `<br/><button class="btn btn-primary btn-sm" onclick="activarRegeneracionPro(${proyectoId}, '${tipo}')">✨ Regenerar en modo PRO</button> ` +
+      `<a href="${url}" class="btn btn-secondary btn-sm" download style="margin-left:8px;">Descargar de todas formas</a>`
+    );
+    return;
+  }
+  window.open(url, '_blank');
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -2784,6 +2836,7 @@ async function generarDocumento() {
       body: JSON.stringify({
         proyecto_id: parseInt(proyId),
         tipo: estado.tipoDocSeleccionado,
+        quality_mode: estado.qualityMode || 'standard',
         config_ia: {
           provider: estado.configIA.provider,
           api_key: estado.configIA.api_key,
@@ -2807,6 +2860,7 @@ async function generarDocumento() {
     document.querySelectorAll('.tab-content').forEach(t=>t.classList.add('hidden'));
     document.querySelectorAll('.tab')[2].classList.add('active');
     document.getElementById('tabGenerados').classList.remove('hidden');
+    estado.qualityMode = 'standard';
     
   } catch(e) {
     hideLoader();

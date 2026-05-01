@@ -176,20 +176,43 @@ TEXTO DE LAS BASES:
 def build_prompt_analisis(texto: str) -> str:
     return PROMPT_ANALISIS_BASE.replace("{texto}", texto[:15000])
 
-def build_prompt_presupuesto(datos_proyecto: dict, texto_bases: str, año: str = "2025") -> str:
-    return PROMPT_GENERAR_PRESUPUESTO.replace(
-        "{datos_proyecto}", json.dumps(datos_proyecto, ensure_ascii=False, indent=2)
-    ).replace("{texto_bases}", texto_bases[:8000]).replace("{año}", año)
+def _quality_directive(quality_mode: str = "standard") -> str:
+    mode = (quality_mode or "standard").strip().lower()
+    if mode == "pro":
+        return (
+            "\nMODO PRO ACTIVADO:\n"
+            "- Eleva profundidad técnica y claridad ejecutiva.\n"
+            "- Refuerza trazabilidad de supuestos y riesgos.\n"
+            "- Prioriza calidad de entrega para cliente final.\n"
+        )
+    return "\nMODO STANDARD: entrega clara y correcta.\n"
 
-def build_prompt_informe(datos_proyecto: dict, texto_bases: str) -> str:
-    return PROMPT_INFORME_TECNICO.replace(
-        "{datos_proyecto}", json.dumps(datos_proyecto, ensure_ascii=False, indent=2)
-    ).replace("{texto_bases}", texto_bases[:8000])
 
-def build_prompt_propuesta(datos_proyecto: dict, texto_bases: str) -> str:
-    return PROMPT_PROPUESTA_TECNICA.replace(
+def build_prompt_presupuesto(
+    datos_proyecto: dict, texto_bases: str, año: str = "2025", quality_mode: str = "standard"
+) -> str:
+    return (
+        PROMPT_GENERAR_PRESUPUESTO.replace(
         "{datos_proyecto}", json.dumps(datos_proyecto, ensure_ascii=False, indent=2)
-    ).replace("{texto_bases}", texto_bases[:8000])
+        ).replace("{texto_bases}", texto_bases[:8000]).replace("{año}", año)
+        + _quality_directive(quality_mode)
+    )
+
+def build_prompt_informe(datos_proyecto: dict, texto_bases: str, quality_mode: str = "standard") -> str:
+    return (
+        PROMPT_INFORME_TECNICO.replace(
+        "{datos_proyecto}", json.dumps(datos_proyecto, ensure_ascii=False, indent=2)
+        ).replace("{texto_bases}", texto_bases[:8000])
+        + _quality_directive(quality_mode)
+    )
+
+def build_prompt_propuesta(datos_proyecto: dict, texto_bases: str, quality_mode: str = "standard") -> str:
+    return (
+        PROMPT_PROPUESTA_TECNICA.replace(
+        "{datos_proyecto}", json.dumps(datos_proyecto, ensure_ascii=False, indent=2)
+        ).replace("{texto_bases}", texto_bases[:8000])
+        + _quality_directive(quality_mode)
+    )
 
 
 def ensure_professional_markdown_structure(text: str, kind: str = "informe") -> str:

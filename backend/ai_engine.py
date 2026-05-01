@@ -53,9 +53,9 @@ class AIEngine:
         response = self._call_llm(prompt, max_tokens=4096)
         return clean_json_response(response)
 
-    def generar_presupuesto(self, datos_proyecto: dict, texto_bases: str) -> dict:
+    def generar_presupuesto(self, datos_proyecto: dict, texto_bases: str, quality_mode: str = "standard") -> dict:
         """Genera un presupuesto completo basado en las bases"""
-        prompt = build_prompt_presupuesto(datos_proyecto, texto_bases)
+        prompt = build_prompt_presupuesto(datos_proyecto, texto_bases, quality_mode=quality_mode)
         response = self._call_llm(prompt, max_tokens=4096)
         parsed = clean_json_response(response)
 
@@ -80,15 +80,15 @@ class AIEngine:
             parsed["partidas"] = []
         return parsed
 
-    def generar_informe_tecnico(self, datos_proyecto: dict, texto_bases: str) -> str:
+    def generar_informe_tecnico(self, datos_proyecto: dict, texto_bases: str, quality_mode: str = "standard") -> str:
         """Genera el informe técnico en Markdown"""
-        prompt = build_prompt_informe(datos_proyecto, texto_bases)
+        prompt = build_prompt_informe(datos_proyecto, texto_bases, quality_mode=quality_mode)
         raw = self._call_llm(prompt, max_tokens=4096)
         return ensure_professional_markdown_structure(raw, kind="informe")
 
-    def generar_propuesta_tecnica(self, datos_proyecto: dict, texto_bases: str) -> str:
+    def generar_propuesta_tecnica(self, datos_proyecto: dict, texto_bases: str, quality_mode: str = "standard") -> str:
         """Genera la propuesta técnica en Markdown"""
-        prompt = build_prompt_propuesta(datos_proyecto, texto_bases)
+        prompt = build_prompt_propuesta(datos_proyecto, texto_bases, quality_mode=quality_mode)
         raw = self._call_llm(prompt, max_tokens=4096)
         return ensure_professional_markdown_structure(raw, kind="propuesta")
 

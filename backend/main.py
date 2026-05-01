@@ -124,6 +124,7 @@ class GenerarDocumentoRequest(BaseModel):
     proyecto_id: int
     tipo: str  # presupuesto_pdf, presupuesto_excel, informe_pdf, propuesta_pdf
     config_ia: ConfigIA
+    quality_mode: str = "standard"  # standard | pro
 
 class ConsultaRequest(BaseModel):
     proyecto_id: int
@@ -302,6 +303,20 @@ def _qa_check_document(doc: Documento) -> dict:
         else:
             faltantes.append(r["label"])
 
+    recomendaciones_map = {
+        "Archivo generado disponible": "Regenerar documento y verificar ruta de exportación.",
+        "Nombre de archivo profesional": "Usar nomenclatura profesional (tipo + proyecto + fecha).",
+        "Tamaño mínimo de entregable": "Agregar mayor profundidad técnica y anexos relevantes.",
+        "Estructura financiera mínima": "Incluir subtotal, gastos generales, utilidades, neto, IVA y total.",
+        "Incluye cliente/proyecto": "Agregar metadatos de cliente, proyecto y fecha en portada/encabezado.",
+        "Incluye validez/supuestos": "Incorporar validez de oferta y supuestos comerciales explícitos.",
+        "Estructura ejecutiva del contenido": "Agregar resumen ejecutivo, alcance, metodología y conclusiones.",
+        "Incluye riesgos/mitigaciones": "Añadir matriz de riesgos y medidas de mitigación.",
+        "Incluye cierre/recomendación": "Cerrar con recomendación ejecutiva y próximos pasos.",
+        "Contenido técnico suficiente": "Aumentar detalle técnico y criterios de respaldo para cliente.",
+    }
+    recomendaciones = [recomendaciones_map.get(f, f"Mejorar: {f}") for f in faltantes]
+
     score = min(100, max(0, score))
     nivel = "pro" if score >= 85 else ("aceptable" if score >= 65 else "debil")
     return {
@@ -312,6 +327,7 @@ def _qa_check_document(doc: Documento) -> dict:
         "nivel": nivel,
         "hallazgos": hallazgos,
         "faltantes": faltantes,
+        "recomendaciones": recomendaciones,
         "archivo_existe": path.exists(),
         "archivo_size_bytes": size,
     }
@@ -547,6 +563,7 @@ async def generar_documento(req: GenerarDocumentoRequest, db: Session = Depends(
         except:
             texto_bases = ""
     
+    quality_mode = (req.quality_mode or "standard").strip().lower()
     engine = AIEngine(
         provider=req.config_ia.provider,
         api_key=req.config_ia.api_key,
@@ -561,28 +578,28 @@ async def generar_documento(req: GenerarDocumentoRequest, db: Session = Depends(
     
     try:
         if req.tipo == "presupuesto_pdf":
-            datos_ppto = engine.generar_presupuesto(datos_extraidos, texto_bases)
+            datos_ppto = engine.generar_presupuesto(datos_extraidos, texto_bases, quality_mode=quality_mode)
             filename = f"Presupuesto_{nombre_safe}_{timestamp}.pdf"
             output_path = str(EXPORTS_DIR / filename)
             generar_presupuesto_pdf(datos_ppto, output_path)
             contenido = json.dumps(datos_ppto)
             
         elif req.tipo == "presupuesto_excel":
-            datos_ppto = engine.generar_presupuesto(datos_extraidos, texto_bases)
+            datos_ppto = engine.generar_presupuesto(datos_extraidos, texto_bases, quality_mode=quality_mode)
             filename = f"Presupuesto_{nombre_safe}_{timestamp}.xlsx"
             output_path = str(EXPORTS_DIR / filename)
             generar_presupuesto_excel(datos_ppto, output_path)
             contenido = json.dumps(datos_ppto)
             
         elif req.tipo == "informe_pdf":
-            informe_md = engine.generar_informe_tecnico(datos_extraidos, texto_bases)
+            informe_md = engine.generar_informe_tecnico(datos_extraidos, texto_bases, quality_mode=quality_mode)
             filename = f"Informe_Tecnico_{nombre_safe}_{timestamp}.pdf"
             output_path = str(EXPORTS_DIR / filename)
             generar_informe_pdf(informe_md, datos_extraidos, output_path)
             contenido = informe_md
             
         elif req.tipo == "propuesta_pdf":
-            propuesta_md = engine.generar_propuesta_tecnica(datos_extraidos, texto_bases)
+            propuesta_md = engine.generar_propuesta_tecnica(datos_extraidos, texto_bases, quality_mode=quality_mode)
             filename = f"Propuesta_Tecnica_{nombre_safe}_{timestamp}.pdf"
             output_path = str(EXPORTS_DIR / filename)
             generar_informe_pdf(propuesta_md, datos_extraidos, output_path)
@@ -635,6 +652,7 @@ async def listar_documentos(proyecto_id: int, db: Session = Depends(get_db)):
     docs = db.query(Documento).filter(Documento.proyecto_id == proyecto_id).all()
     return [{
         "id": d.id,
+        "proyecto_id": d.proyecto_id,
         "tipo": d.tipo,
         "nombre": d.nombre,
         "fecha_creacion": d.fecha_creacion.isoformat() if d.fecha_creacion else "",
