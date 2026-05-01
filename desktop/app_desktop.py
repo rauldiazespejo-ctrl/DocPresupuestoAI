@@ -42,6 +42,8 @@ def _project_root() -> Path:
 
 ROOT = _project_root()
 FRONTEND_FILE = ROOT / "frontend" / "index.html"
+# UI servida por FastAPI (/app/) para no depender de file:// ni de caché del WebView con bundles viejos.
+DESKTOP_UI_PATH = "/app/"
 _backend_process: Optional[subprocess.Popen] = None
 _uvicorn_server: Any = None
 _instance_lock_handle = None
@@ -235,7 +237,7 @@ def main() -> int:
         _stop_backend()
         return 1
 
-    window_url = FRONTEND_FILE.resolve().as_uri()
+    window_url = f"{BACKEND_URL}{DESKTOP_UI_PATH}"
     _log(f"Backend listo. Abriendo interfaz: {window_url}")
     try:
         webview.create_window(

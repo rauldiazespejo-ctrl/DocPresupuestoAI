@@ -2339,6 +2339,16 @@ async def bid_leveling(req: BidLevelingRequest, db: Session = Depends(get_db)):
         "resumen": resumen,
     }
 
+
+# Interfaz web (navegador y app escritorio vía pywebview): mismo árbol que REPO_ROOT/frontend
+_frontend_dir = REPO_ROOT / "frontend"
+if _frontend_dir.is_dir():
+    app.mount(
+        "/app",
+        StaticFiles(directory=str(_frontend_dir), html=True),
+        name="frontend_ui",
+    )
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("backend.main:app", host="0.0.0.0", port=8000, reload=True)

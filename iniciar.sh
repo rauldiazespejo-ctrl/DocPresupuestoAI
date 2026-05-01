@@ -26,7 +26,7 @@ echo "Para detener el servidor presiona CTRL+C"
 echo ""
 
 # Abrir navegador después de 2 segundos
-(sleep 2 && open "$ROOT_DIR/frontend/index.html") &
+(sleep 2 && open "http://127.0.0.1:8000/app/") &
 
 # Iniciar servidor
 cd "$ROOT_DIR" && PYTHONPATH="$ROOT_DIR" python3 -m uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload

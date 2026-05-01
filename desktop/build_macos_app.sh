@@ -59,3 +59,4 @@ hdiutil create -volname "${DISPLAY_NAME}" -srcfolder "${APP_PATH}" -ov -format U
 echo ""
 echo "Listo: ${APP_PATH}"
 echo "Instalador DMG: ${DMG_PATH}"
+echo "Nota: la UI se carga desde http://127.0.0.1:8000/app/ (frontend del bundle); reconstruye tras cambiar index.html."

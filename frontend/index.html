@@ -1138,7 +1138,13 @@ tfoot td{padding:10px 14px;color:var(--blanco);font-weight:700;}
 /* ═══════════════════════════════════════════════════════════════════════════
    ESTADO GLOBAL
 ═══════════════════════════════════════════════════════════════════════════ */
-const API = 'http://localhost:8000';
+const API = (() => {
+  try {
+    const o = window.location.origin;
+    if (o && (o.startsWith('http://') || o.startsWith('https://'))) return o;
+  } catch (e) { /* noop */ }
+  return 'http://localhost:8000';
+})();
 const LOCAL_IA_CONFIG = window.DOC_AI_LOCAL_CONFIG || null;
 const QA_GATE_MIN_SCORE = 85;
 const IA_CONFIG_STORAGE_KEY = 'docpresupuesto_ia';
