@@ -1061,8 +1061,8 @@ tfoot td{padding:10px 14px;color:var(--blanco);font-weight:700;}
           <h3>Cartera de proyectos</h3>
           <div style="overflow-x:auto;">
             <table class="comite-table" id="comiteTablaProyectos">
-              <thead><tr><th>ID</th><th>Proyecto</th><th>OT / Código</th><th>Cliente</th><th>Semáforo</th><th>Preflight</th><th>Vencidas</th><th>Avance cierre</th></tr></thead>
-              <tbody><tr><td colspan="8">Cargando…</td></tr></tbody>
+              <thead><tr><th>ID</th><th>Proyecto</th><th>OT / Código</th><th>Cliente</th><th>Semáforo</th><th>Preflight</th><th>Vencidas</th><th>Avance cierre</th><th class="comite-no-print">Acción</th></tr></thead>
+              <tbody><tr><td colspan="9">Cargando…</td></tr></tbody>
             </table>
           </div>
         </div>
@@ -1070,8 +1070,8 @@ tfoot td{padding:10px 14px;color:var(--blanco);font-weight:700;}
           <h3>Plan de cierre abierto (priorizado)</h3>
           <div style="overflow-x:auto;">
             <table class="comite-table" id="comiteTablaAcciones">
-              <thead><tr><th>Proyecto</th><th>Acción</th><th>Prioridad</th><th>Owner</th><th>SLA</th><th>Estado</th></tr></thead>
-              <tbody><tr><td colspan="6">Cargando…</td></tr></tbody>
+              <thead><tr><th>Proyecto</th><th>Acción</th><th>Prioridad</th><th>Owner</th><th>SLA</th><th>Estado</th><th class="comite-no-print">Acción rápida</th></tr></thead>
+              <tbody><tr><td colspan="7">Cargando…</td></tr></tbody>
             </table>
           </div>
         </div>
@@ -1803,6 +1803,12 @@ async function descargarComitePdf() {
   }
 }
 
+function irAProyectoDesdeComite(proyectoId) {
+  const id = Number(proyectoId || 0);
+  if(!id) return;
+  irAGenerar(id);
+}
+
 async function cargarVistaComite() {
   const fechaLinea = document.getElementById('comiteFechaLinea');
   if(fechaLinea) {
@@ -1851,8 +1857,9 @@ async function cargarVistaComite() {
           <td>${pf}</td>
           <td>${ven}</td>
           <td>${av}</td>
+          <td class="comite-no-print"><button class="btn btn-secondary btn-sm" onclick="irAProyectoDesdeComite(${p.id})">Abrir</button></td>
         </tr>`;
-      }).join('') : '<tr><td colspan="8">Sin proyectos</td></tr>';
+      }).join('') : '<tr><td colspan="9">Sin proyectos</td></tr>';
     }
 
     const topR = data.top_acciones_criticas || [];
@@ -1876,7 +1883,8 @@ async function cargarVistaComite() {
         <td>${escapeHtmlComite(i.owner || 'equipo')}</td>
         <td>${escapeHtmlComite(formatoFechaCorta(i.fecha_compromiso))}</td>
         <td>${escapeHtmlComite(String(i.estado || '').replace(/_/g, ' '))}</td>
-      </tr>`).join('') : '<tr><td colspan="6">Sin acciones de cierre abiertas</td></tr>';
+        <td class="comite-no-print"><button class="btn btn-secondary btn-sm" onclick="irAProyectoDesdeComite(${Number(i.proyecto_id || 0)})">Ir</button></td>
+      </tr>`).join('') : '<tr><td colspan="7">Sin acciones de cierre abiertas</td></tr>';
     }
   } catch (e) {
     mostrarAlerta('alertComite', 'error', e.message || 'No se pudo cargar la vista comité.');
