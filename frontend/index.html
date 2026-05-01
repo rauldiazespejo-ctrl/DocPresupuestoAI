@@ -598,6 +598,7 @@ tfoot td{padding:10px 14px;color:var(--blanco);font-weight:700;}
         <div class="exec-filter">
           <button id="btnFiltroTodos" class="btn btn-secondary btn-sm btn-filter-active" onclick="aplicarFiltroDashboard('todos')">Todos</button>
           <button id="btnFiltroRiesgo" class="btn btn-secondary btn-sm" onclick="aplicarFiltroDashboard('riesgo')">Solo riesgo</button>
+          <button id="btnFiltroVencidas" class="btn btn-secondary btn-sm" onclick="aplicarFiltroDashboard('vencidas')">Con SLA vencido</button>
           <button id="btnFiltroAptos" class="btn btn-secondary btn-sm" onclick="aplicarFiltroDashboard('aptos')">Solo aptos</button>
         </div>
         <div id="execTopCriticas" class="exec-critical-list"></div>
@@ -1634,9 +1635,11 @@ function aplicarFiltroDashboard(filtro) {
   estado.dashboardFilter = filtro || 'todos';
   const btnTodos = document.getElementById('btnFiltroTodos');
   const btnRiesgo = document.getElementById('btnFiltroRiesgo');
+  const btnVenc = document.getElementById('btnFiltroVencidas');
   const btnAptos = document.getElementById('btnFiltroAptos');
-  [btnTodos, btnRiesgo, btnAptos].forEach(b => b && b.classList.remove('btn-filter-active'));
+  [btnTodos, btnRiesgo, btnVenc, btnAptos].forEach(b => b && b.classList.remove('btn-filter-active'));
   if(estado.dashboardFilter === 'riesgo' && btnRiesgo) btnRiesgo.classList.add('btn-filter-active');
+  else if(estado.dashboardFilter === 'vencidas' && btnVenc) btnVenc.classList.add('btn-filter-active');
   else if(estado.dashboardFilter === 'aptos' && btnAptos) btnAptos.classList.add('btn-filter-active');
   else if(btnTodos) btnTodos.classList.add('btn-filter-active');
   cargarDashboard();
@@ -1666,8 +1669,8 @@ function renderTopAccionesCriticas(items=[]) {
   }
   box.innerHTML = items.map(i => `
     <div class="exec-critical-item">
-      <div class="exec-critical-title">🚨 ${i.titulo}</div>
-      <div class="exec-critical-meta">${i.proyecto_nombre || ('Proyecto ' + i.proyecto_id)} · Prioridad ${String(i.prioridad || 'media').toUpperCase()} · Owner: ${i.owner || 'equipo'} · SLA: ${formatoFechaCorta(i.fecha_compromiso)}</div>
+      <div class="exec-critical-title">🚨 ${escapeHtmlComite(i.titulo)}</div>
+      <div class="exec-critical-meta">${escapeHtmlComite(i.proyecto_nombre || ('Proyecto ' + i.proyecto_id))} · Prioridad ${escapeHtmlComite(String(i.prioridad || 'media').toUpperCase())} · Owner: ${escapeHtmlComite(i.owner || 'equipo')} · SLA: ${escapeHtmlComite(formatoFechaCorta(i.fecha_compromiso))}</div>
     </div>
   `).join('');
 }
@@ -1699,7 +1702,7 @@ function renderAlertaEjecutivaDiaria(items=[]) {
   box.innerHTML = `
     <div class="alert alert-warning" style="margin-bottom:12px;">
       ⚠️ <b>Alerta ejecutiva diaria:</b> hay ${vencidas.length} acción(es) crítica(s) vencida(s).<br/>
-      Prioridad inmediata: <b>${top.titulo}</b> (${top.proyecto_nombre || ('Proyecto ' + top.proyecto_id)}).<br/>
+      Prioridad inmediata: <b>${escapeHtmlComite(top.titulo)}</b> (${escapeHtmlComite(top.proyecto_nombre || ('Proyecto ' + top.proyecto_id))}).<br/>
       <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;">
         <button class="btn btn-primary btn-sm" onclick="irAGenerar(${top.proyecto_id})">Ir al proyecto afectado</button>
         <button class="btn btn-secondary btn-sm" onclick="descartarAlertaEjecutivaDiaria()">Ocultar hoy</button>
@@ -1906,8 +1909,9 @@ async function cargarDashboard() {
     if(ekV) ekV.textContent = String(verdes);
     if(ekP) ekP.textContent = `${aptosPct}%`;
     const topCriticas = (ejecutivo && ejecutivo.top_acciones_criticas) || [];
+    const accionesAbiertas = (ejecutivo && ejecutivo.acciones_cierre_abiertas) || [];
     renderTopAccionesCriticas(topCriticas);
-    renderAlertaEjecutivaDiaria(topCriticas);
+    renderAlertaEjecutivaDiaria(accionesAbiertas.length ? accionesAbiertas : topCriticas);
     procesarNotificacionRiesgoRecuperado(proyectos);
     
     // Lista sidebar
@@ -1931,6 +1935,7 @@ async function cargarDashboard() {
       .filter(p => {
       const meta = semaforoProyectoMeta(p);
       if(estado.dashboardFilter === 'riesgo') return meta.color === 'rojo' || meta.color === 'amarillo';
+      if(estado.dashboardFilter === 'vencidas') return Number(meta.vencidas || 0) > 0;
       if(estado.dashboardFilter === 'aptos') return (meta.estado_preflight || '') === 'apto';
       return true;
       });

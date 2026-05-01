@@ -132,6 +132,8 @@ DocPresupuestoAI/
 | POST | `/api/historico-licitaciones` | Registra licitación histórica adjudicada/no adjudicada |
 | POST | `/api/historico-licitaciones/importar` | Importa histórico masivo desde CSV/XLSX |
 | GET | `/api/historico-licitaciones?ultimos_anios=3` | Lista histórico para modelo de atractividad |
+| GET | `/api/dashboard/ejecutivo` | Panel ejecutivo: semáforos por proyecto, top acciones críticas y plan de cierre abierto |
+| GET | `/api/dashboard/comite-pdf` | Descarga PDF del informe Comité de entrega (mismos datos que el dashboard ejecutivo) |
 
 Plantilla sugerida para importación masiva:
 - `templates/plantilla_historico_licitaciones.xlsx`
