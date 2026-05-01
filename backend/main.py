@@ -232,6 +232,7 @@ class PlanCierreItemRequest(BaseModel):
     owner: str = "equipo"
     estado: str = "pendiente"
     origen: str = "manual"
+    fecha_compromiso: Optional[str] = None
     metadata: dict = Field(default_factory=dict)
 
 
@@ -240,6 +241,7 @@ class PlanCierreItemUpdateRequest(BaseModel):
     owner: Optional[str] = None
     estado: Optional[str] = None
     titulo: Optional[str] = None
+    fecha_compromiso: Optional[str] = None
 
 # ─── Configuración IA en memoria (sesión) ─────────────────────────────────────
 ia_config = {}
@@ -1113,6 +1115,23 @@ def _prioridad_desde_accion(texto: str) -> str:
     return "baja"
 
 
+def _parse_fecha_compromiso(fecha_texto: Optional[str]) -> Optional[datetime]:
+    raw = (fecha_texto or "").strip()
+    if not raw:
+        return None
+    try:
+        parsed = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+        return parsed.replace(tzinfo=None) if parsed.tzinfo else parsed
+    except Exception:
+        return None
+
+
+def _sla_por_prioridad(prioridad: str) -> datetime:
+    p = (prioridad or "media").strip().lower()
+    dias = 2 if p == "alta" else (5 if p == "media" else 10)
+    return datetime.utcnow() + timedelta(days=dias)
+
+
 @app.get("/api/proyectos/{proyecto_id}/plan-cierre")
 async def listar_plan_cierre(proyecto_id: int, db: Session = Depends(get_db)):
     proyecto = db.query(Proyecto).filter(Proyecto.id == proyecto_id).first()
@@ -1133,6 +1152,7 @@ async def listar_plan_cierre(proyecto_id: int, db: Session = Depends(get_db)):
             "owner": i.owner,
             "estado": i.estado,
             "origen": i.origen,
+            "fecha_compromiso": i.fecha_compromiso.isoformat() if i.fecha_compromiso else None,
             "metadata": i.metadata_json or {},
             "fecha_creacion": i.fecha_creacion.isoformat() if i.fecha_creacion else "",
             "fecha_actualizacion": i.fecha_actualizacion.isoformat() if i.fecha_actualizacion else "",
@@ -1145,13 +1165,16 @@ async def crear_item_plan_cierre(proyecto_id: int, req: PlanCierreItemRequest, d
     proyecto = db.query(Proyecto).filter(Proyecto.id == proyecto_id).first()
     if not proyecto:
         raise HTTPException(status_code=404, detail="Proyecto no encontrado")
+    fecha_compromiso = _parse_fecha_compromiso(req.fecha_compromiso)
+    prioridad = (req.prioridad or "media").strip().lower()
     item = PlanCierreItem(
         proyecto_id=proyecto_id,
         titulo=(req.titulo or "").strip(),
-        prioridad=(req.prioridad or "media").strip().lower(),
+        prioridad=prioridad,
         owner=(req.owner or "equipo").strip(),
         estado=(req.estado or "pendiente").strip().lower(),
         origen=(req.origen or "manual").strip().lower(),
+        fecha_compromiso=fecha_compromiso or _sla_por_prioridad(prioridad),
         metadata_json=req.metadata or {},
         fecha_actualizacion=datetime.utcnow(),
     )
@@ -1186,6 +1209,7 @@ async def sincronizar_plan_cierre_desde_preflight(proyecto_id: int, db: Session 
             owner="equipo",
             estado="pendiente",
             origen="preflight",
+            fecha_compromiso=_sla_por_prioridad(_prioridad_desde_accion(titulo)),
             metadata_json={"estado_preflight": preflight.get("estado_final", "")},
             fecha_actualizacion=datetime.utcnow(),
         )
@@ -1214,6 +1238,8 @@ async def actualizar_item_plan_cierre(item_id: int, req: PlanCierreItemUpdateReq
         item.prioridad = req.prioridad.strip().lower()
     if req.estado is not None:
         item.estado = req.estado.strip().lower()
+    if req.fecha_compromiso is not None:
+        item.fecha_compromiso = _parse_fecha_compromiso(req.fecha_compromiso)
     item.fecha_actualizacion = datetime.utcnow()
     db.commit()
     return {"message": "Item de cierre actualizado"}

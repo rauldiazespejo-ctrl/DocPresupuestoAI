@@ -3048,6 +3048,25 @@ function prioridadBadge(prioridad) {
   return '🟠 Media';
 }
 
+function formatoFechaCorta(fechaIso) {
+  if(!fechaIso) return 'Sin compromiso';
+  const d = new Date(fechaIso);
+  if(Number.isNaN(d.getTime())) return 'Sin compromiso';
+  return d.toLocaleDateString('es-CL');
+}
+
+function estadoSLA(fechaIso, estado) {
+  if(!fechaIso) return '⚪ Sin fecha';
+  if(String(estado || '').toLowerCase() === 'resuelto') return '✅ Cerrado';
+  const hoy = new Date();
+  const f = new Date(fechaIso);
+  if(Number.isNaN(f.getTime())) return '⚪ Sin fecha';
+  const delta = Math.floor((f.getTime() - hoy.getTime()) / 86400000);
+  if(delta < 0) return `⛔ Vencido ${Math.abs(delta)}d`;
+  if(delta <= 2) return `⚠️ Vence en ${delta}d`;
+  return `🟢 En plazo (${delta}d)`;
+}
+
 async function cargarCentroCierreProyectoActual() {
   const proyectoId = obtenerProyectoActivoId();
   const resumen = document.getElementById('cierreResumen');
@@ -3072,9 +3091,11 @@ async function cargarCentroCierreProyectoActual() {
         <div style="font-size:1.1rem">🧷</div>
         <div style="flex:1">
           <div class="pname">${i.titulo}</div>
-          <div class="pmeta">${prioridadBadge(i.prioridad)} · Owner: ${i.owner || 'equipo'} · Origen: ${i.origen || 'manual'}</div>
+          <div class="pmeta">${prioridadBadge(i.prioridad)} · Owner: ${i.owner || 'equipo'} · SLA: ${formatoFechaCorta(i.fecha_compromiso)} · ${estadoSLA(i.fecha_compromiso, i.estado)} · Origen: ${i.origen || 'manual'}</div>
         </div>
         <div>
+          <input class="input" style="min-width:120px;height:34px;padding:4px 8px;margin-right:6px;" value="${(i.owner || '').replace(/"/g, '&quot;')}" onchange="actualizarOwnerCierre(${i.id}, this.value)" placeholder="Owner" />
+          <input type="date" class="input" style="height:34px;padding:4px 8px;margin-right:6px;" value="${(i.fecha_compromiso || '').slice(0,10)}" onchange="actualizarFechaCompromisoCierre(${i.id}, this.value)" />
           <select class="input" style="min-width:130px;height:34px;padding:4px 8px;" onchange="actualizarEstadoCierre(${i.id}, this.value)">
             <option value="pendiente" ${i.estado==='pendiente'?'selected':''}>Pendiente</option>
             <option value="en_progreso" ${i.estado==='en_progreso'?'selected':''}>En progreso</option>
@@ -3112,13 +3133,24 @@ async function agregarAccionCierreManual() {
   }
   const titulo = prompt('Describe la acción de cierre:');
   if(!titulo || !titulo.trim()) return;
+  const owner = (prompt('Responsable (owner) de esta acción:', 'equipo') || 'equipo').trim() || 'equipo';
+  const dias = parseInt(prompt('SLA en días (ej: 5):', '5') || '5', 10);
+  const diasSLA = Number.isFinite(dias) && dias > 0 ? dias : 5;
+  const fechaCompromiso = new Date(Date.now() + (diasSLA * 86400000)).toISOString();
   try {
     await apiFetch(
       `/api/proyectos/${proyectoId}/plan-cierre`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ titulo: titulo.trim(), prioridad: 'media', owner: 'equipo', estado: 'pendiente', origen: 'manual' })
+        body: JSON.stringify({
+          titulo: titulo.trim(),
+          prioridad: 'media',
+          owner,
+          estado: 'pendiente',
+          origen: 'manual',
+          fecha_compromiso: fechaCompromiso
+        })
       },
       { context: 'Nueva acción de cierre' }
     );
@@ -3142,6 +3174,41 @@ async function actualizarEstadoCierre(itemId, estadoNuevo) {
     await cargarCentroCierreProyectoActual();
   } catch (e) {
     mostrarAlerta('alertArea', 'error', e.message || 'No se pudo actualizar el estado de cierre.');
+  }
+}
+
+async function actualizarOwnerCierre(itemId, ownerNuevo) {
+  try {
+    await apiFetch(
+      `/api/plan-cierre/${itemId}`,
+      {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ owner: (ownerNuevo || 'equipo').trim() || 'equipo' })
+      },
+      { context: 'Actualización de owner de cierre' }
+    );
+    await cargarCentroCierreProyectoActual();
+  } catch (e) {
+    mostrarAlerta('alertArea', 'error', e.message || 'No se pudo actualizar owner de cierre.');
+  }
+}
+
+async function actualizarFechaCompromisoCierre(itemId, fechaISODate) {
+  try {
+    const payload = { fecha_compromiso: fechaISODate ? `${fechaISODate}T23:59:59` : '' };
+    await apiFetch(
+      `/api/plan-cierre/${itemId}`,
+      {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      },
+      { context: 'Actualización de fecha compromiso' }
+    );
+    await cargarCentroCierreProyectoActual();
+  } catch (e) {
+    mostrarAlerta('alertArea', 'error', e.message || 'No se pudo actualizar fecha de compromiso.');
   }
 }
 

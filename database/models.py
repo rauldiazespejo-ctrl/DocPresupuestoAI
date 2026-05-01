@@ -126,6 +126,7 @@ class PlanCierreItem(Base):
     owner = Column(String, default="equipo")
     estado = Column(String, default="pendiente")  # pendiente, en_progreso, resuelto
     origen = Column(String, default="manual")  # preflight, manual
+    fecha_compromiso = Column(DateTime, index=True)
     metadata_json = Column(JSON)
     fecha_creacion = Column(DateTime, default=datetime.utcnow)
     fecha_actualizacion = Column(DateTime, default=datetime.utcnow)
@@ -138,6 +139,10 @@ def create_tables():
         nombres = {c[1] for c in cols}
         if "codigo_licitacion" not in nombres:
             conn.exec_driver_sql("ALTER TABLE proyectos ADD COLUMN codigo_licitacion VARCHAR DEFAULT ''")
+        cols_cierre = conn.exec_driver_sql("PRAGMA table_info(plan_cierre_items)").fetchall()
+        nombres_cierre = {c[1] for c in cols_cierre}
+        if cols_cierre and "fecha_compromiso" not in nombres_cierre:
+            conn.exec_driver_sql("ALTER TABLE plan_cierre_items ADD COLUMN fecha_compromiso DATETIME")
 
 def get_db():
     db = SessionLocal()
