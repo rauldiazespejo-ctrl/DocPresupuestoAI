@@ -231,6 +231,9 @@ tfoot td{padding:10px 14px;color:var(--blanco);font-weight:700;}
 .proj-row .pmeta{font-size:0.78rem;color:#888;margin-top:3px;}
 .proj-row .pstatus{padding:4px 12px;border-radius:20px;font-size:0.72rem;font-weight:700;}
 .pstatus.activo{background:#d5f4e6;color:#1a5c35;}
+.pstatus.verde{background:#d5f4e6;color:#1a5c35;}
+.pstatus.amarillo{background:#fff5d6;color:#835d00;}
+.pstatus.rojo{background:#fde9e9;color:#7d1111;}
 .proj-row .pactions{margin-left:auto;display:flex;gap:8px;}
 
 /* ═══════════════════════════════════════════════════
@@ -1513,6 +1516,17 @@ function actualizarStatusIA() {
   }
 }
 
+function semaforoProyectoMeta(proyecto) {
+  return proyecto?.semaforo_ejecutivo || {};
+}
+
+function semaforoBadgeLabel(proyecto) {
+  const s = semaforoProyectoMeta(proyecto);
+  const color = s.color || 'amarillo';
+  const label = s.label || 'Atención';
+  return { color, label };
+}
+
 /* ═══════════════════════════════════════════════════════════════════════════
    DASHBOARD
 ═══════════════════════════════════════════════════════════════════════════ */
@@ -1552,9 +1566,9 @@ async function cargarDashboard() {
           <div style="font-size:1.8rem">📁</div>
           <div>
             <div class="pname">${p.nombre}</div>
-            <div class="pmeta">${p.codigo_licitacion?`[${p.codigo_licitacion}] · `:''}${p.cliente||'Sin cliente'} · ${new Date(p.fecha_creacion).toLocaleDateString('es-CL')}</div>
+            <div class="pmeta">${p.codigo_licitacion?`[${p.codigo_licitacion}] · `:''}${p.cliente||'Sin cliente'} · ${new Date(p.fecha_creacion).toLocaleDateString('es-CL')} · Preflight: ${(p.semaforo_ejecutivo?.estado_preflight || 'sin_dato').toUpperCase()} · Vencidas: ${p.semaforo_ejecutivo?.vencidas || 0}</div>
           </div>
-          <span class="pstatus activo">Activo</span>
+          <span class="pstatus ${semaforoBadgeLabel(p).color}">${semaforoBadgeLabel(p).label}</span>
           <div class="pactions">
             <button class="btn btn-primary btn-sm" onclick="event.stopPropagation();irAGenerar(${p.id})">📄 Generar</button>
             <button class="btn btn-danger btn-sm" onclick="event.stopPropagation();eliminarProyecto(${p.id})">🗑️</button>

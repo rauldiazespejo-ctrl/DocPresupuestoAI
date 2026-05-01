@@ -406,15 +406,20 @@ async def obtener_config_ia():
 @app.get("/api/proyectos")
 async def listar_proyectos(db: Session = Depends(get_db)):
     proyectos = db.query(Proyecto).order_by(Proyecto.fecha_creacion.desc()).all()
-    return [{
-        "id": p.id,
-        "nombre": p.nombre,
-        "codigo_licitacion": p.codigo_licitacion or "",
-        "cliente": p.cliente,
-        "estado": p.estado,
-        "fecha_creacion": p.fecha_creacion.isoformat() if p.fecha_creacion else "",
-        "tiene_datos": bool(p.datos_extraidos)
-    } for p in proyectos]
+    salida = []
+    for p in proyectos:
+        semaforo = await _semaforo_ejecutivo_proyecto(p.id, db)
+        salida.append({
+            "id": p.id,
+            "nombre": p.nombre,
+            "codigo_licitacion": p.codigo_licitacion or "",
+            "cliente": p.cliente,
+            "estado": p.estado,
+            "fecha_creacion": p.fecha_creacion.isoformat() if p.fecha_creacion else "",
+            "tiene_datos": bool(p.datos_extraidos),
+            "semaforo_ejecutivo": semaforo,
+        })
+    return salida
 
 @app.get("/api/proyectos/{proyecto_id}")
 async def obtener_proyecto(proyecto_id: int, db: Session = Depends(get_db)):
@@ -1130,6 +1135,45 @@ def _sla_por_prioridad(prioridad: str) -> datetime:
     p = (prioridad or "media").strip().lower()
     dias = 2 if p == "alta" else (5 if p == "media" else 10)
     return datetime.utcnow() + timedelta(days=dias)
+
+
+async def _semaforo_ejecutivo_proyecto(proyecto_id: int, db: Session) -> dict:
+    preflight = await ejecutar_preflight_entrega(proyecto_id, db)
+    estado_preflight = preflight.get("estado_final", "")
+    items = db.query(PlanCierreItem).filter(PlanCierreItem.proyecto_id == proyecto_id).all()
+    total = len(items)
+    resueltos = sum(1 for i in items if (i.estado or "").strip().lower() == "resuelto")
+    pendientes = total - resueltos
+    ahora = datetime.utcnow()
+    vencidas = sum(
+        1
+        for i in items
+        if i.fecha_compromiso
+        and (i.estado or "").strip().lower() != "resuelto"
+        and i.fecha_compromiso < ahora
+    )
+    avance_pct = round((resueltos / total) * 100, 2) if total else 0.0
+
+    if estado_preflight == "no_apto" or vencidas > 0:
+        color = "rojo"
+        label = "Riesgo alto"
+    elif estado_preflight == "condicional" or pendientes > 0:
+        color = "amarillo"
+        label = "Atención"
+    else:
+        color = "verde"
+        label = "Controlado"
+
+    return {
+        "color": color,
+        "label": label,
+        "estado_preflight": estado_preflight,
+        "total_acciones": total,
+        "resueltas": resueltos,
+        "pendientes": pendientes,
+        "vencidas": vencidas,
+        "avance_pct": avance_pct,
+    }
 
 
 @app.get("/api/proyectos/{proyecto_id}/plan-cierre")
