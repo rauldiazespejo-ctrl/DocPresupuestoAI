@@ -160,6 +160,14 @@ class AIEngine:
         except openai.APIStatusError as e:
             if e.status_code == 401:
                 raise IAAuthError(_auth_message(self.provider)) from e
+            if e.status_code == 403 and self.provider == "ollama":
+                detail = str(getattr(e, "message", "") or "")
+                if "subscription" in detail.lower() or "upgrade" in detail.lower():
+                    raise RuntimeError(
+                        "Ollama (403): este modelo suele exigir plan de pago para usarlo por la API HTTP "
+                        "(p. ej. algunos tags :cloud). En «Configurar IA» prueba un modelo local sin restricción, "
+                        "como llama3.1:8b, o revisa las condiciones en ollama.com."
+                    ) from e
             if e.status_code == 429:
                 raise IARateLimitError(
                     f"Límite de uso del proveedor ({self.provider}). Espera unos minutos o revisa tu plan."
