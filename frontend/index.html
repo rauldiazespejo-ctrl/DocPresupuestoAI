@@ -1204,7 +1204,7 @@ function actualizarHintApiKey() {
   if(!el) return;
   const prov = document.getElementById('cfgProvider') && document.getElementById('cfgProvider').value;
   if(prov === 'ollama') {
-    el.textContent = 'Ollama: deja la clave vacía si usas el servidor local por defecto. Instala un modelo con «ollama pull llama3.2» antes de analizar.';
+    el.textContent = 'Ollama: clave vacía con servidor local. El nombre del modelo debe coincidir con «ollama list» (ej. deepseek-v4-pro:cloud). Si no está en la lista, elige el más parecido o pide añadir tu etiqueta exacta.';
   } else if(prov === 'groq') {
     el.textContent = 'Groq: clave gratuita en console.groq.com/keys (requiere cuenta).';
   } else if(prov === 'gemini') {
@@ -1626,7 +1626,14 @@ function actualizarModelosPorProveedor() {
       sel.innerHTML += `<option value="${v}">${l}</option>`;
     });
   } else if (prov==='ollama') {
-    [['llama3.2','llama3.2 (recomendado)'],['llama3.1:8b','llama3.1:8b'],['mistral','mistral'],['mixtral','mixtral']].forEach(([v,l])=>{
+    [
+      ['deepseek-v4-pro:cloud','DeepSeek V4 Pro :cloud (Ollama)'],
+      ['deepseek-v4-pro','DeepSeek V4 Pro'],
+      ['llama3.2','llama3.2 (rápido, local)'],
+      ['llama3.1:8b','llama3.1:8b'],
+      ['mistral','mistral'],
+      ['mixtral','mixtral'],
+    ].forEach(([v,l])=>{
       sel.innerHTML += `<option value="${v}">${l}</option>`;
     });
   } else {
