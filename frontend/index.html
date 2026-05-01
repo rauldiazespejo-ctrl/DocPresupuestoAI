@@ -1637,6 +1637,47 @@ function descartarAlertaEjecutivaDiaria() {
   if(box) box.innerHTML = '';
 }
 
+function keySemaforoSnapshot() {
+  return 'docpresupuesto_semaforo_snapshot_v1';
+}
+
+function keyRecuperacionNotificadaHoy() {
+  const hoy = new Date().toISOString().slice(0, 10);
+  return `docpresupuesto_risk_recovered_${hoy}`;
+}
+
+function loadJsonLocal(key, fallback) {
+  try {
+    const raw = localStorage.getItem(key);
+    return raw ? JSON.parse(raw) : fallback;
+  } catch (_) {
+    return fallback;
+  }
+}
+
+function procesarNotificacionRiesgoRecuperado(proyectos=[]) {
+  const prev = loadJsonLocal(keySemaforoSnapshot(), {});
+  const notifiedHoy = loadJsonLocal(keyRecuperacionNotificadaHoy(), {});
+  const recovered = [];
+  (proyectos || []).forEach(p => {
+    const id = String(p.id);
+    const actual = semaforoProyectoMeta(p).color || '';
+    const anterior = prev[id] || '';
+    if((anterior === 'rojo' || anterior === 'amarillo') && actual === 'verde' && !notifiedHoy[id]) {
+      recovered.push(p);
+      notifiedHoy[id] = 1;
+    }
+    prev[id] = actual;
+  });
+  localStorage.setItem(keySemaforoSnapshot(), JSON.stringify(prev));
+  localStorage.setItem(keyRecuperacionNotificadaHoy(), JSON.stringify(notifiedHoy));
+
+  if(!recovered.length) return;
+  const nombres = recovered.slice(0, 3).map(p => p.nombre).join(', ');
+  const extra = recovered.length > 3 ? ` (+${recovered.length - 3} más)` : '';
+  mostrarAlerta('alertArea', 'success', `✅ Riesgo recuperado: ${nombres}${extra}. El semáforo pasó a verde.`);
+}
+
 /* ═══════════════════════════════════════════════════════════════════════════
    DASHBOARD
 ═══════════════════════════════════════════════════════════════════════════ */
@@ -1665,6 +1706,7 @@ async function cargarDashboard() {
     const topCriticas = (ejecutivo && ejecutivo.top_acciones_criticas) || [];
     renderTopAccionesCriticas(topCriticas);
     renderAlertaEjecutivaDiaria(topCriticas);
+    procesarNotificacionRiesgoRecuperado(proyectos);
     
     // Lista sidebar
     const sb = document.getElementById('sidebarProjects');
