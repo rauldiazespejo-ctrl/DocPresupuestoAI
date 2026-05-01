@@ -41,6 +41,22 @@ chmod +x iniciar.sh && ./iniciar.sh
 - Haz clic en **"Generar con IA"**
 - ¡Descarga el resultado en segundos!
 
+### 5. Probar versión de escritorio (macOS)
+```bash
+chmod +x desktop/ejecutar_desktop.sh
+./desktop/ejecutar_desktop.sh
+```
+
+Esto abre DocPresupuestoAI en una ventana nativa de escritorio y levanta el backend automáticamente.
+
+Para generar un `.app` de prueba:
+```bash
+chmod +x desktop/build_macos_app.sh
+./desktop/build_macos_app.sh
+```
+
+Salida esperada: `dist/DocPresupuestoAI.app`
+
 ---
 
 ## Formatos de entrada soportados
@@ -142,4 +158,4 @@ El índice documental exportado incluye formato tipo dossier:
 - Resumen ejecutivo de cumplimiento por sección
 - Detalle completo de requisitos y evidencias
 
-## Desarrollado con ❤️ usando Blackbox AI
+## Desarrollado por Pulso AI

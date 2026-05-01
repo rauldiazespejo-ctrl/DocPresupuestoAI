@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>DocPresupuestoAI — Sistema Inteligente de Documentación</title>
+<title>DocPresupuestoAI by Pulso AI — Sistema Inteligente de Documentación</title>
 <style>
 /* ═══════════════════════════════════════════════════
    VARIABLES Y RESET
@@ -310,6 +310,7 @@ tfoot td{padding:10px 14px;color:var(--blanco);font-weight:700;}
         <label>Proveedor</label>
         <select id="cfgProvider" onchange="actualizarModelosPorProveedor()">
           <option value="openai">🤖 OpenAI (GPT)</option>
+          <option value="zai">⚡ ZAI (GLM)</option>
           <option value="anthropic">🧠 Anthropic (Claude)</option>
         </select>
       </div>
@@ -340,7 +341,7 @@ tfoot td{padding:10px 14px;color:var(--blanco);font-weight:700;}
   <aside class="sidebar">
     <div class="sidebar-logo">
       <h1>Doc<span>Presupuesto</span>AI</h1>
-      <p>Sistema Inteligente v1.0</p>
+      <p>Sistema Inteligente v1.0 · Desarrollado por Pulso AI</p>
     </div>
     
     <div class="sidebar-section">Navegación</div>
@@ -863,7 +864,7 @@ tfoot td{padding:10px 14px;color:var(--blanco);font-weight:700;}
         <div class="chat-wrapper">
           <div class="chat-messages" id="chatMessages">
             <div class="msg msg-ai">
-              👋 ¡Hola! Soy tu asistente de DocPresupuestoAI. Selecciona un proyecto y hazme preguntas sobre las bases técnicas, el presupuesto o cualquier aspecto del proyecto.
+              👋 ¡Hola! Soy tu asistente de DocPresupuestoAI by Pulso AI. Selecciona un proyecto y hazme preguntas sobre las bases técnicas, el presupuesto o cualquier aspecto del proyecto.
             </div>
           </div>
           <div class="chat-input-area">
@@ -890,15 +891,17 @@ tfoot td{padding:10px 14px;color:var(--blanco);font-weight:700;}
   </main>
 </div>
 
+<script src="local-config.js"></script>
 <script>
 /* ═══════════════════════════════════════════════════════════════════════════
    ESTADO GLOBAL
 ═══════════════════════════════════════════════════════════════════════════ */
 const API = 'http://localhost:8000';
+const LOCAL_IA_CONFIG = window.DOC_AI_LOCAL_CONFIG || null;
 let estado = {
   proyectos: [],
   proyectoActual: null,
-  configIA: JSON.parse(localStorage.getItem('docpresupuesto_ia') || 'null'),
+  configIA: JSON.parse(localStorage.getItem('docpresupuesto_ia') || 'null') || LOCAL_IA_CONFIG,
   tipoDocSeleccionado: null,
   escenariosSimulacion: [
     { nombre: 'Escenario 1', factores: {} },
@@ -978,6 +981,10 @@ function actualizarModelosPorProveedor() {
     [['gpt-4o','GPT-4o (Recomendado)'],['gpt-4o-mini','GPT-4o Mini (Rápido)'],['gpt-4-turbo','GPT-4 Turbo']].forEach(([v,l])=>{
       sel.innerHTML += `<option value="${v}">${l}</option>`;
     });
+  } else if (prov==='zai') {
+    [['glm-4.5-air','GLM-4.5 Air (Recomendado)'],['glm-4.5','GLM-4.5'],['glm-4.5-flash','GLM-4.5 Flash (Rápido)']].forEach(([v,l])=>{
+      sel.innerHTML += `<option value="${v}">${l}</option>`;
+    });
   } else {
     [['claude-3-5-sonnet-20241022','Claude 3.5 Sonnet (Recomendado)'],['claude-3-haiku-20240307','Claude 3 Haiku (Rápido)'],['claude-3-opus-20240229','Claude 3 Opus']].forEach(([v,l])=>{
       sel.innerHTML += `<option value="${v}">${l}</option>`;
@@ -1002,12 +1009,16 @@ function cargarConfigIA() {
     document.getElementById('cfgProvider').value = estado.configIA.provider||'openai';
     actualizarModelosPorProveedor();
     document.getElementById('cfgModel').value = estado.configIA.model||'gpt-4o';
+    document.getElementById('cfgApiKey').value = estado.configIA.api_key||'';
     actualizarStatusIA();
+    localStorage.setItem('docpresupuesto_ia', JSON.stringify(estado.configIA));
   }
 }
 function actualizarStatusIA() {
   if(estado.configIA && estado.configIA.api_key) {
-    const prov = estado.configIA.provider==='openai'?'GPT':'Claude';
+    const prov = estado.configIA.provider==='openai'?'GPT'
+      : estado.configIA.provider==='zai' ? 'ZAI'
+      : 'Claude';
     document.getElementById('sidebarIAStatus').textContent = `IA: ${prov} ✓`;
     document.getElementById('statIA').textContent = prov;
   } else {

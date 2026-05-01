@@ -15,12 +15,19 @@ class AIEngine:
         if provider == "openai":
             self.model = model or "gpt-4o"
             self.client = openai.OpenAI(api_key=api_key)
+        elif provider == "zai":
+            # ZAI expone API compatible con OpenAI Chat Completions.
+            self.model = model or "glm-4.5-air"
+            self.client = openai.OpenAI(
+                api_key=api_key,
+                base_url=os.getenv("ZAI_BASE_URL", "https://api.z.ai/api/paas/v4")
+            )
         elif provider == "anthropic":
             self.model = model or "claude-3-5-sonnet-20241022"
             self.client = anthropic.Anthropic(api_key=api_key)
 
     def _call_llm(self, prompt: str, max_tokens: int = 4096) -> str:
-        if self.provider == "openai":
+        if self.provider in {"openai", "zai"}:
             response = self.client.chat.completions.create(
                 model=self.model,
                 messages=[{"role": "user", "content": prompt}],
