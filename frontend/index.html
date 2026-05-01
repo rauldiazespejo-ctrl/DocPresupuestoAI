@@ -246,6 +246,31 @@ tfoot td{padding:10px 14px;color:var(--blanco);font-weight:700;}
 .exec-critical-title{font-size:0.82rem;font-weight:700;color:#8a1f1f;}
 .exec-critical-meta{font-size:0.74rem;color:#8a5b5b;margin-top:2px;}
 
+.comite-sheet{background:var(--blanco);border-radius:var(--radio);padding:28px;box-shadow:var(--sombra);border:1px solid var(--gris-m);}
+.comite-head{border-bottom:2px solid var(--azul);padding-bottom:14px;margin-bottom:18px;}
+.comite-head h2{font-size:1.25rem;color:var(--azul);}
+.comite-meta{font-size:0.82rem;color:#666;margin-top:6px;}
+.comite-kpi-row{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:18px 0;}
+.comite-kpi{border:1px solid var(--gris-m);border-radius:10px;padding:12px;text-align:center;}
+.comite-kpi .vk{font-size:1.35rem;font-weight:800;color:var(--azul);}
+.comite-kpi .vl{font-size:0.72rem;color:#666;margin-top:4px;}
+.comite-section{margin-top:22px;}
+.comite-section h3{font-size:0.95rem;color:var(--azul);margin-bottom:10px;}
+.comite-table{width:100%;border-collapse:collapse;font-size:0.8rem;}
+.comite-table th,.comite-table td{border:1px solid #dde3ea;padding:8px 10px;text-align:left;}
+.comite-table th{background:var(--gris);font-weight:700;color:var(--azul);}
+.comite-actions{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;}
+
+@media print{
+  body{background:#fff !important;}
+  .bg-orb{display:none !important;}
+  .sidebar,.topbar,.comite-no-print{display:none !important;}
+  .main-content{margin-left:0 !important;}
+  .page{display:none !important;padding:12px !important;}
+  #page-comite.page.active{display:block !important;}
+  .comite-sheet{box-shadow:none;border:none;padding:0;}
+}
+
 /* ═══════════════════════════════════════════════════
    MODAL
 ═══════════════════════════════════════════════════ */
@@ -307,11 +332,13 @@ tfoot td{padding:10px 14px;color:var(--blanco);font-weight:700;}
   .main-content{margin-left:70px;}
   .stats-grid{grid-template-columns:1fr 1fr;}
   .exec-kpi-grid{grid-template-columns:1fr 1fr;}
+  .comite-kpi-row{grid-template-columns:1fr 1fr;}
   .form-grid,.datos-grid{grid-template-columns:1fr;}
 }
 @media(max-width:600px){
   .stats-grid{grid-template-columns:1fr;}
   .exec-kpi-grid{grid-template-columns:1fr;}
+  .comite-kpi-row{grid-template-columns:1fr;}
   .page{padding:16px;}
   .topbar{padding:12px 16px;}
 }
@@ -461,6 +488,9 @@ tfoot td{padding:10px 14px;color:var(--blanco);font-weight:700;}
     <a class="nav-item" onclick="navegar('chat')" href="#">
       <span class="icon">💬</span><span>Consultar IA</span>
     </a>
+    <a class="nav-item" onclick="navegar('comite')" href="#">
+      <span class="icon">🏛️</span><span>Vista Comité</span>
+    </a>
     
     <div class="sidebar-section">Proyectos Recientes</div>
     <div class="sidebar-projects" id="sidebarProjects">
@@ -491,6 +521,7 @@ tfoot td{padding:10px 14px;color:var(--blanco);font-weight:700;}
         <button class="btn btn-secondary btn-sm" onclick="evaluarReadinessProyectoActual()">🏁 Readiness</button>
         <button class="btn btn-secondary btn-sm" onclick="ejecutarPreflightEntrega()">🛫 Preflight</button>
         <button class="btn btn-secondary btn-sm" onclick="abrirCentroCierre()">🧩 Cierre</button>
+        <button class="btn btn-secondary btn-sm" onclick="navegar('comite')">🏛️ Comité</button>
         <button class="btn btn-secondary btn-sm" onclick="abrirModal('modalLegal')">📜 Términos</button>
         <button class="btn btn-secondary btn-sm" onclick="abrirModal('modalConfig')">⚙️ Configurar IA</button>
         <button class="btn btn-primary btn-sm" onclick="navegar('nuevo')">➕ Nuevo Proyecto</button>
@@ -1005,6 +1036,49 @@ tfoot td{padding:10px 14px;color:var(--blanco);font-weight:700;}
       </div>
     </div>
 
+    <!-- ══ VISTA COMITÉ (imprimible) ═════════════════════════════════════════════ -->
+    <div class="page" id="page-comite">
+      <div id="alertComite"></div>
+      <div class="comite-actions comite-no-print">
+        <button class="btn btn-secondary btn-sm" onclick="navegar('dashboard')">← Volver al dashboard</button>
+        <button class="btn btn-primary btn-sm" onclick="cargarVistaComite()">🔄 Actualizar datos</button>
+        <button class="btn btn-primary btn-sm" onclick="window.print()">🖨️ Imprimir / PDF</button>
+      </div>
+      <div id="comiteContenido" class="comite-sheet">
+        <div class="comite-head">
+          <h2>Informe ejecutivo — Comité de entrega</h2>
+          <div class="comite-meta" id="comiteFechaLinea">Cargando…</div>
+          <div class="comite-meta">DocPresupuestoAI · Resumen portfolio local (preflight, semáforo y plan de cierre)</div>
+        </div>
+        <div class="comite-kpi-row" id="comiteKpis"></div>
+        <div class="comite-section">
+          <h3>Top riesgos operativos (acciones de cierre)</h3>
+          <div id="comiteTopRiesgos"></div>
+        </div>
+        <div class="comite-section">
+          <h3>Cartera de proyectos</h3>
+          <div style="overflow-x:auto;">
+            <table class="comite-table" id="comiteTablaProyectos">
+              <thead><tr><th>ID</th><th>Proyecto</th><th>OT / Código</th><th>Cliente</th><th>Semáforo</th><th>Preflight</th><th>Vencidas</th><th>Avance cierre</th></tr></thead>
+              <tbody><tr><td colspan="8">Cargando…</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="comite-section">
+          <h3>Plan de cierre abierto (priorizado)</h3>
+          <div style="overflow-x:auto;">
+            <table class="comite-table" id="comiteTablaAcciones">
+              <thead><tr><th>Proyecto</th><th>Acción</th><th>Prioridad</th><th>Owner</th><th>SLA</th><th>Estado</th></tr></thead>
+              <tbody><tr><td colspan="6">Cargando…</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="comite-section comite-meta" style="margin-top:24px;">
+          Documento generado para uso interno. Los indicadores refieren estado local y reglas de preflight/QA vigentes en la aplicación.
+        </div>
+      </div>
+    </div>
+
     <!-- ══ CHAT IA ══════════════════════════════════════════════════════════════ -->
     <div class="page" id="page-chat">
       <div class="card">
@@ -1395,7 +1469,8 @@ function rechazarTerminos() {
 ═══════════════════════════════════════════════════════════════════════════ */
 const titulos = {
   dashboard:'📊 Dashboard', nuevo:'➕ Nuevo Proyecto',
-  generar:'📄 Generar Documentos', documentacion:'🗂️ Documentación Requerida', prediccion:'🎯 Predicción Adjudicación', chat:'💬 Consultar IA'
+  generar:'📄 Generar Documentos', documentacion:'🗂️ Documentación Requerida', prediccion:'🎯 Predicción Adjudicación', chat:'💬 Consultar IA',
+  comite:'🏛️ Vista Comité'
 };
 function navegar(pagina) {
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
@@ -1408,6 +1483,7 @@ function navegar(pagina) {
   if(pagina==='documentacion') cargarSelectoresDocumentacion();
   if(pagina==='prediccion') cargarSelectoresPrediccion();
   if(pagina==='chat') cargarSelectoresProyecto(true);
+  if(pagina==='comite') cargarVistaComite();
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -1676,6 +1752,95 @@ function procesarNotificacionRiesgoRecuperado(proyectos=[]) {
   const nombres = recovered.slice(0, 3).map(p => p.nombre).join(', ');
   const extra = recovered.length > 3 ? ` (+${recovered.length - 3} más)` : '';
   mostrarAlerta('alertArea', 'success', `✅ Riesgo recuperado: ${nombres}${extra}. El semáforo pasó a verde.`);
+}
+
+function escapeHtmlComite(s) {
+  if(s === null || s === undefined) return '';
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+async function cargarVistaComite() {
+  const fechaLinea = document.getElementById('comiteFechaLinea');
+  if(fechaLinea) {
+    fechaLinea.textContent = `Generado: ${new Date().toLocaleString('es-CL', { dateStyle: 'medium', timeStyle: 'short' })}`;
+  }
+  try {
+    const data = await apiFetch('/api/dashboard/ejecutivo', {}, { context: 'Vista comité', timeoutMs: 25000 });
+    const sems = data.semaforos || [];
+    const rojos = sems.filter(x => (x.semaforo || {}).color === 'rojo').length;
+    const amarillos = sems.filter(x => (x.semaforo || {}).color === 'amarillo').length;
+    const verdes = sems.filter(x => (x.semaforo || {}).color === 'verde').length;
+    const aptos = sems.filter(x => (x.semaforo || {}).estado_preflight === 'apto').length;
+    const aptosPct = sems.length ? Math.round((aptos / sems.length) * 100) : 0;
+    const kpis = document.getElementById('comiteKpis');
+    if(kpis) {
+      kpis.innerHTML = `
+        <div class="comite-kpi"><div class="vk">${rojos}</div><div class="lbl">Riesgo alto</div></div>
+        <div class="comite-kpi"><div class="vk">${amarillos}</div><div class="lbl">Atención</div></div>
+        <div class="comite-kpi"><div class="vk">${verdes}</div><div class="lbl">Controlado</div></div>
+        <div class="comite-kpi"><div class="vk">${aptosPct}%</div><div class="lbl">Preflight apto</div></div>
+      `;
+    }
+
+    const filasProy = sems.map(s => ({
+      id: s.proyecto_id,
+      nombre: s.nombre,
+      codigo_licitacion: s.codigo_licitacion || '',
+      cliente: s.cliente || '',
+      semaforo_ejecutivo: s.semaforo || {}
+    })).sort(ordenCriticidadProyecto);
+
+    const tbodyP = document.querySelector('#comiteTablaProyectos tbody');
+    if(tbodyP) {
+      tbodyP.innerHTML = filasProy.length ? filasProy.map(p => {
+        const sm = semaforoProyectoMeta(p);
+        const semLabel = escapeHtmlComite(sm.label || '—');
+        const pf = escapeHtmlComite(String(sm.estado_preflight || '—').toUpperCase());
+        const ven = sm.vencidas != null ? String(sm.vencidas) : '0';
+        const av = sm.avance_pct != null ? `${Number(sm.avance_pct).toFixed(0)}%` : '—';
+        return `<tr>
+          <td>${p.id}</td>
+          <td>${escapeHtmlComite(p.nombre)}</td>
+          <td>${escapeHtmlComite(p.codigo_licitacion || '—')}</td>
+          <td>${escapeHtmlComite(p.cliente || '—')}</td>
+          <td>${semLabel}</td>
+          <td>${pf}</td>
+          <td>${ven}</td>
+          <td>${av}</td>
+        </tr>`;
+      }).join('') : '<tr><td colspan="8">Sin proyectos</td></tr>';
+    }
+
+    const topR = data.top_acciones_criticas || [];
+    const boxTop = document.getElementById('comiteTopRiesgos');
+    if(boxTop) {
+      boxTop.innerHTML = topR.length ? topR.map(i => `
+        <div class="exec-critical-item" style="margin-bottom:8px;">
+          <div class="exec-critical-title">🚨 ${escapeHtmlComite(i.titulo)}</div>
+          <div class="exec-critical-meta">${escapeHtmlComite(i.proyecto_nombre || ('Proyecto ' + i.proyecto_id))} · ${escapeHtmlComite(String(i.prioridad || '').toUpperCase())} · Owner: ${escapeHtmlComite(i.owner || 'equipo')} · SLA: ${escapeHtmlComite(formatoFechaCorta(i.fecha_compromiso))}</div>
+        </div>
+      `).join('') : '<div class="text-muted" style="font-size:0.82rem;">Sin acciones críticas priorizadas.</div>';
+    }
+
+    const acc = data.acciones_cierre_abiertas || [];
+    const tbodyA = document.querySelector('#comiteTablaAcciones tbody');
+    if(tbodyA) {
+      tbodyA.innerHTML = acc.length ? acc.map(i => `<tr>
+        <td>${escapeHtmlComite(i.proyecto_nombre || ('#' + i.proyecto_id))}</td>
+        <td>${escapeHtmlComite(i.titulo)}</td>
+        <td>${escapeHtmlComite(String(i.prioridad || '').toUpperCase())}</td>
+        <td>${escapeHtmlComite(i.owner || 'equipo')}</td>
+        <td>${escapeHtmlComite(formatoFechaCorta(i.fecha_compromiso))}</td>
+        <td>${escapeHtmlComite(String(i.estado || '').replace(/_/g, ' '))}</td>
+      </tr>`).join('') : '<tr><td colspan="6">Sin acciones de cierre abiertas</td></tr>';
+    }
+  } catch (e) {
+    mostrarAlerta('alertComite', 'error', e.message || 'No se pudo cargar la vista comité.');
+  }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════

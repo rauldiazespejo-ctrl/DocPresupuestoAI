@@ -428,7 +428,13 @@ async def dashboard_ejecutivo(db: Session = Depends(get_db)):
     semaforos = []
     for p in proyectos:
         s = await _semaforo_ejecutivo_proyecto(p.id, db)
-        semaforos.append({"proyecto_id": p.id, "nombre": p.nombre, "semaforo": s})
+        semaforos.append({
+            "proyecto_id": p.id,
+            "nombre": p.nombre,
+            "codigo_licitacion": p.codigo_licitacion or "",
+            "cliente": p.cliente or "",
+            "semaforo": s,
+        })
 
     items = (
         db.query(PlanCierreItem)
@@ -461,10 +467,23 @@ async def dashboard_ejecutivo(db: Session = Depends(get_db)):
         "estado": i.estado or "pendiente",
     } for i in top_items]
 
+    top_portfolio = sorted(items, key=_score, reverse=True)[:25]
+    acciones_cierre_abiertas = [{
+        "item_id": i.id,
+        "proyecto_id": i.proyecto_id,
+        "proyecto_nombre": (mapa_proy.get(i.proyecto_id).nombre if mapa_proy.get(i.proyecto_id) else f"Proyecto {i.proyecto_id}"),
+        "titulo": i.titulo,
+        "prioridad": i.prioridad or "media",
+        "owner": i.owner or "equipo",
+        "fecha_compromiso": i.fecha_compromiso.isoformat() if i.fecha_compromiso else None,
+        "estado": i.estado or "pendiente",
+    } for i in top_portfolio]
+
     return {
         "proyectos_total": len(proyectos),
         "semaforos": semaforos,
         "top_acciones_criticas": top_criticas,
+        "acciones_cierre_abiertas": acciones_cierre_abiertas,
     }
 
 @app.get("/api/proyectos/{proyecto_id}")
