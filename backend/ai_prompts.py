@@ -57,18 +57,20 @@ DOCUMENTO A ANALIZAR:
 
 # ─── Prompt para generar presupuesto completo ──────────────────────────────────
 PROMPT_GENERAR_PRESUPUESTO = """
-Eres un experto en presupuestos de construcción, servicios e ingeniería en Chile.
+Actúa como gerente de estudios y propuestas senior, experto en presupuestos de construcción, servicios e ingeniería en Chile.
 
-Con base en los datos extraídos del documento del cliente, genera un presupuesto COMPLETO y PROFESIONAL.
+Con base en los datos extraídos del documento del cliente, genera un presupuesto COMPLETO, PROFESIONAL y LISTO PARA PRESENTACIÓN A CLIENTE.
 
 DATOS DEL PROYECTO:
 {datos_proyecto}
 
 INSTRUCCIONES:
 1. Genera todas las partidas necesarias según el alcance del proyecto.
-2. Usa precios de mercado chileno actualizados para {año}.
+2. Usa precios de mercado chileno actualizados para {año}, con criterio conservador y defendible.
 3. Incluye: materiales, mano de obra, equipos, gastos generales (15%), utilidades (10%), IVA (19%).
 4. Si hay partidas ya definidas en las bases, úsalas como base y completa las faltantes.
+5. Usa nombres de partidas claros y ejecutivos.
+6. No inventes condiciones contractuales específicas no presentes; cuando falten, propone supuestos razonables explícitos.
 5. Responde en JSON con esta estructura:
 
 {
@@ -82,7 +84,10 @@ INSTRUCCIONES:
     "utilidades": 0,
     "neto": 0,
     "iva": 0,
-    "total": 0
+    "total": 0,
+    "validez_oferta": "30 días corridos",
+    "plazo_ejecucion": "plazo sugerido de ejecución",
+    "supuestos": "supuestos clave del presupuesto en una sola frase"
   },
   "partidas": [
     {
@@ -104,16 +109,17 @@ TEXTO DE LAS BASES:
 
 # ─── Prompt para generar informe técnico ──────────────────────────────────────
 PROMPT_INFORME_TECNICO = """
-Eres un ingeniero senior con experiencia en proyectos de construcción e ingeniería en Chile.
+Eres un gerente técnico senior con experiencia en ingeniería y licitaciones en Chile.
 
-Genera un INFORME TÉCNICO PROFESIONAL y COMPLETO basado en las bases del proyecto.
+Genera un INFORME TÉCNICO PROFESIONAL, EJECUTIVO y COMPLETO basado en las bases del proyecto.
 
 DATOS DEL PROYECTO:
 {datos_proyecto}
 
 El informe debe incluir:
 1. Portada (datos del proyecto)
-2. Introducción y Antecedentes
+2. Resumen Ejecutivo (máximo 8 líneas, orientado a decisión)
+3. Introducción y Antecedentes
 3. Alcance del Proyecto
 4. Metodología de Trabajo
 5. Descripción Técnica
@@ -121,7 +127,15 @@ El informe debe incluir:
 7. Recursos Humanos y Equipos
 8. Plan de Calidad
 9. Plan de Seguridad
-10. Conclusiones
+10. Riesgos y Mitigaciones
+11. Supuestos y Exclusiones
+12. Conclusiones y Recomendación
+
+CRITERIOS DE REDACCIÓN:
+- Español profesional de nivel corporativo.
+- Oraciones claras y trazables a bases.
+- Evita frases vagas o marketing vacío.
+- Incluye bullets accionables cuando corresponda.
 
 Responde en formato Markdown profesional, usando el lenguaje técnico apropiado.
 
@@ -131,7 +145,7 @@ BASES DEL PROYECTO:
 
 # ─── Prompt para generar propuesta técnica ────────────────────────────────────
 PROMPT_PROPUESTA_TECNICA = """
-Eres un consultor experto en licitaciones en Chile. 
+Eres director de propuestas y licitaciones en Chile.
 
 Genera una PROPUESTA TÉCNICA COMPLETA Y GANADORA para el siguiente proyecto.
 
@@ -148,7 +162,10 @@ Estructura:
 5. Equipo de Trabajo Propuesto
 6. Plan de Trabajo y Cronograma
 7. Gestión de Riesgos
-8. Compromisos y Garantías
+8. Plan de Calidad y Seguridad
+9. Supuestos, Exclusiones y Dependencias
+10. Compromisos y Garantías
+11. Cierre Ejecutivo (propuesta de valor concreta)
 
 Formato: Markdown profesional, redacción en primera persona plural (nosotros/nuestra empresa).
 
@@ -173,6 +190,39 @@ def build_prompt_propuesta(datos_proyecto: dict, texto_bases: str) -> str:
     return PROMPT_PROPUESTA_TECNICA.replace(
         "{datos_proyecto}", json.dumps(datos_proyecto, ensure_ascii=False, indent=2)
     ).replace("{texto_bases}", texto_bases[:8000])
+
+
+def ensure_professional_markdown_structure(text: str, kind: str = "informe") -> str:
+    """
+    Asegura una estructura mínima profesional para entregables markdown.
+    Si la IA no trae secciones críticas, agrega placeholders ejecutivos.
+    """
+    raw = (text or "").strip()
+    if not raw:
+        raw = "# Documento\n\nContenido no disponible."
+
+    lower = raw.lower()
+    additions = []
+    if kind == "informe":
+        required = [
+            ("## Resumen Ejecutivo", "Pendiente de completar resumen ejecutivo."),
+            ("## Riesgos y Mitigaciones", "Sin riesgos explicitados por la IA."),
+            ("## Supuestos y Exclusiones", "Sin supuestos/exclusiones explicitados por la IA."),
+            ("## Conclusiones y Recomendación", "Sin recomendación final explicitada por la IA."),
+        ]
+    else:
+        required = [
+            ("## Resumen Ejecutivo", "Pendiente de completar resumen ejecutivo."),
+            ("## Plan de Calidad y Seguridad", "Sin plan de calidad/seguridad explicitado por la IA."),
+            ("## Supuestos, Exclusiones y Dependencias", "Sin supuestos/exclusiones/dependencias explicitados por la IA."),
+            ("## Cierre Ejecutivo", "Sin cierre ejecutivo explicitado por la IA."),
+        ]
+
+    for title, fallback in required:
+        if title.lower() not in lower:
+            additions.append(f"\n{title}\n\n{fallback}\n")
+
+    return raw + "".join(additions)
 
 def clean_json_response(text: str) -> dict:
     """Limpia y parsea respuesta JSON de la IA"""

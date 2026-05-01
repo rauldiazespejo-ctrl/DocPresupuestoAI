@@ -24,6 +24,58 @@ COLOR_ACENTO = colors.HexColor("#f5a623")       # Dorado
 COLOR_FONDO = colors.HexColor("#f0f4f8")        # Gris muy claro
 COLOR_TEXTO = colors.HexColor("#1a1a2e")        # Casi negro
 
+
+def _fmt_fecha_larga(fecha: datetime | None = None) -> str:
+    meses = [
+        "enero", "febrero", "marzo", "abril", "mayo", "junio",
+        "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"
+    ]
+    dt = fecha or datetime.now()
+    return f"{dt.day} de {meses[dt.month - 1]} de {dt.year}"
+
+
+def _draw_header_footer(canvas, doc, titulo_doc: str = "Documento"):
+    canvas.saveState()
+    canvas.setFont("Helvetica", 8)
+    canvas.setFillColor(colors.grey)
+    canvas.drawString(1.5 * cm, 1.1 * cm, f"DocPresupuestoAI · {titulo_doc}")
+    canvas.drawRightString(
+        A4[0] - 1.5 * cm,
+        1.1 * cm,
+        f"Página {canvas.getPageNumber()} · {datetime.now().strftime('%d/%m/%Y %H:%M')}",
+    )
+    canvas.restoreState()
+
+
+def _clean_inline_markdown(texto: str) -> str:
+    line = (texto or "").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    while "**" in line:
+        line = line.replace("**", "<b>", 1)
+        if "**" in line:
+            line = line.replace("**", "</b>", 1)
+    return line
+
+
+def _seccion_firma_table() -> Table:
+    data = [
+        ["Aprobación Comercial", "", "Aprobación Técnica", ""],
+        ["Nombre:", "__________________________", "Nombre:", "__________________________"],
+        ["Cargo:", "__________________________", "Cargo:", "__________________________"],
+        ["Firma:", "__________________________", "Firma:", "__________________________"],
+    ]
+    t = Table(data, colWidths=[3.6 * cm, 5.2 * cm, 3.6 * cm, 5.2 * cm])
+    t.setStyle(TableStyle([
+        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("TEXTCOLOR", (0, 0), (-1, 0), COLOR_PRIMARIO),
+        ("FONTSIZE", (0, 0), (-1, -1), 8),
+        ("ALIGN", (0, 0), (-1, 0), "CENTER"),
+        ("TOPPADDING", (0, 0), (-1, -1), 4),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+        ("GRID", (0, 1), (-1, -1), 0.25, colors.lightgrey),
+    ]))
+    return t
+
+
 def format_clp(value: float) -> str:
     return f"$ {value:,.0f}".replace(",", ".")
 
@@ -42,7 +94,7 @@ def generar_presupuesto_pdf(datos: dict, output_path: str) -> str:
     
     styles = getSampleStyleSheet()
     
-    # Estilos personalizados
+    # Estilos personalizados (enfoque ejecutivo/profesional)
     estilo_titulo = ParagraphStyle('Titulo', fontSize=20, textColor=COLOR_PRIMARIO,
                                     alignment=TA_CENTER, spaceAfter=6, fontName='Helvetica-Bold')
     estilo_subtitulo = ParagraphStyle('Subtitulo', fontSize=13, textColor=COLOR_SECUNDARIO,
@@ -58,8 +110,30 @@ def generar_presupuesto_pdf(datos: dict, output_path: str) -> str:
     resumen = datos.get("resumen", {})
     partidas = datos.get("partidas", [])
     
-    # ─── ENCABEZADO ───────────────────────────────────────────────────────────
-    # Banner superior
+    # ─── PORTADA EJECUTIVA ────────────────────────────────────────────────────
+    nombre_proyecto = resumen.get("nombre_proyecto", "Proyecto")
+    cliente = resumen.get("cliente", "Cliente no informado")
+    fecha_str = resumen.get("fecha", datetime.now().strftime("%d/%m/%Y"))
+    moneda = resumen.get("moneda", "CLP")
+
+    portada = Table([["PROPUESTA ECONÓMICA"]], colWidths=[18 * cm])
+    portada.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, -1), COLOR_PRIMARIO),
+        ('TEXTCOLOR', (0, 0), (-1, -1), colors.white),
+        ('FONTNAME', (0, 0), (-1, -1), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, -1), 18),
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('TOPPADDING', (0, 0), (-1, -1), 16),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 16),
+    ]))
+    story.append(portada)
+    story.append(Spacer(1, 0.35 * cm))
+    story.append(Paragraph(f"<b>{nombre_proyecto}</b>", estilo_titulo))
+    story.append(Paragraph(f"Cliente / Mandante: <b>{cliente}</b>", ParagraphStyle("PortadaMeta", fontSize=10, alignment=TA_CENTER)))
+    story.append(Paragraph(f"Fecha de emisión: <b>{fecha_str}</b>", ParagraphStyle("PortadaMeta2", fontSize=9, alignment=TA_CENTER, textColor=colors.grey)))
+    story.append(Spacer(1, 0.5 * cm))
+
+    # ─── ENCABEZADO DETALLE ───────────────────────────────────────────────────
     banner_data = [["PRESUPUESTO TÉCNICO - OFERTA ECONÓMICA"]]
     banner = Table(banner_data, colWidths=[18*cm])
     banner.setStyle(TableStyle([
@@ -77,11 +151,6 @@ def generar_presupuesto_pdf(datos: dict, output_path: str) -> str:
     story.append(Spacer(1, 0.3*cm))
     
     # Datos del proyecto
-    fecha_str = resumen.get("fecha", datetime.now().strftime("%d/%m/%Y"))
-    nombre_proyecto = resumen.get("nombre_proyecto", "Proyecto")
-    cliente = resumen.get("cliente", "")
-    moneda = resumen.get("moneda", "CLP")
-    
     info_data = [
         ["Proyecto:", nombre_proyecto, "Fecha:", fecha_str],
         ["Cliente:", cliente, "Moneda:", moneda],
@@ -102,6 +171,14 @@ def generar_presupuesto_pdf(datos: dict, output_path: str) -> str:
     ]))
     story.append(info_table)
     story.append(Spacer(1, 0.5*cm))
+
+    # Declaración ejecutiva de alcance y validez
+    story.append(Paragraph(
+        "Alcance ejecutivo: esta propuesta económica considera la información "
+        "disponible al momento de emisión y se alinea al estándar técnico-comercial "
+        "definido para procesos de licitación.",
+        ParagraphStyle("AlcanceExec", fontSize=8.7, leading=12, textColor=COLOR_TEXTO, alignment=TA_JUSTIFY, spaceAfter=8),
+    ))
     
     # ─── TABLA DE PARTIDAS ────────────────────────────────────────────────────
     # Encabezado de tabla
@@ -207,8 +284,33 @@ def generar_presupuesto_pdf(datos: dict, output_path: str) -> str:
     ]))
     story.append(resumen_table)
     
+    # ─── NOTAS, VIGENCIA Y FIRMA ─────────────────────────────────────────────
+    story.append(Spacer(1, 0.45 * cm))
+    vigencia_data = [
+        ["Condiciones comerciales", "Detalle"],
+        ["Validez de la oferta", resumen.get("validez_oferta", "30 días corridos desde la fecha de emisión")],
+        ["Plazo de ejecución", resumen.get("plazo_ejecucion", "Según programación contractual acordada")],
+        ["Supuestos relevantes", resumen.get("supuestos", "Sujeto a confirmación de alcance, accesos, y disponibilidad operativa del cliente")],
+    ]
+    vigencia_table = Table(vigencia_data, colWidths=[4.8 * cm, 13.2 * cm])
+    vigencia_table.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), COLOR_SECUNDARIO),
+        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("FONTSIZE", (0, 0), (-1, -1), 8),
+        ("GRID", (0, 0), (-1, -1), 0.3, colors.lightgrey),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("LEFTPADDING", (0, 0), (-1, -1), 5),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 5),
+        ("TOPPADDING", (0, 0), (-1, -1), 4),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+    ]))
+    story.append(vigencia_table)
+    story.append(Spacer(1, 0.45 * cm))
+    story.append(_seccion_firma_table())
+
     # ─── FOOTER ───────────────────────────────────────────────────────────────
-    story.append(Spacer(1, 1*cm))
+    story.append(Spacer(1, 0.4*cm))
     story.append(HRFlowable(width="100%", thickness=1, color=COLOR_PRIMARIO))
     story.append(Spacer(1, 0.2*cm))
     story.append(Paragraph(
@@ -216,7 +318,11 @@ def generar_presupuesto_pdf(datos: dict, output_path: str) -> str:
         estilo_footer
     ))
     
-    doc.build(story)
+    doc.build(
+        story,
+        onFirstPage=lambda c, d: _draw_header_footer(c, d, "Propuesta Económica"),
+        onLaterPages=lambda c, d: _draw_header_footer(c, d, "Propuesta Económica"),
+    )
     return output_path
 
 
@@ -227,10 +333,13 @@ def generar_presupuesto_excel(datos: dict, output_path: str) -> str:
     wb = openpyxl.Workbook()
     ws = wb.active
     ws.title = "Presupuesto"
+    ws_exec = wb.create_sheet("Resumen Ejecutivo", 0)
     
     resumen = datos.get("resumen", {})
     partidas = datos.get("partidas", [])
     nombre_proyecto = resumen.get("nombre_proyecto", "Proyecto")
+    cliente = resumen.get("cliente", "Cliente no informado")
+    fecha_emision = resumen.get("fecha", datetime.now().strftime("%d/%m/%Y"))
     moneda = resumen.get("moneda", "CLP")
     
     # Estilos
@@ -250,7 +359,26 @@ def generar_presupuesto_excel(datos: dict, output_path: str) -> str:
         bottom=Side(style='thin', color='D0D0D0')
     )
     
-    # ─── Fila de título ───
+    # ─── Hoja ejecutiva (nueva) ──────────────────────────────────────────────
+    ws_exec.merge_cells("A1:E1")
+    ws_exec["A1"] = "RESUMEN EJECUTIVO - PROPUESTA ECONÓMICA"
+    ws_exec["A1"].font = Font(name='Calibri', bold=True, color="FFFFFF", size=15)
+    ws_exec["A1"].fill = PatternFill(fill_type="solid", fgColor=azul_oscuro)
+    ws_exec["A1"].alignment = Alignment(horizontal="center", vertical="center")
+    ws_exec.row_dimensions[1].height = 34
+
+    ws_exec["A3"] = "Proyecto:"
+    ws_exec["B3"] = nombre_proyecto
+    ws_exec["A4"] = "Cliente:"
+    ws_exec["B4"] = cliente
+    ws_exec["A5"] = "Fecha emisión:"
+    ws_exec["B5"] = fecha_emision
+    ws_exec["A6"] = "Moneda:"
+    ws_exec["B6"] = moneda
+    for c in ["A3", "A4", "A5", "A6"]:
+        ws_exec[c].font = Font(name='Calibri', bold=True, color=azul_oscuro, size=10)
+
+    # ─── Fila de título (detalle presupuesto) ────────────────────────────────
     ws.merge_cells("A1:F1")
     ws["A1"] = f"PRESUPUESTO: {nombre_proyecto.upper()}"
     ws["A1"].font = Font(name='Calibri', bold=True, color="FFFFFF", size=14)
@@ -316,11 +444,11 @@ def generar_presupuesto_excel(datos: dict, output_path: str) -> str:
     # ─── Resumen financiero ───
     row_num += 1
     subtotal = sum(p.get("precio_total", 0) or 0 for p in partidas)
-    gastos_gen = subtotal * 0.15
-    utilidades = subtotal * 0.10
-    neto = subtotal + gastos_gen + utilidades
-    iva = neto * 0.19
-    total = neto + iva
+    gastos_gen = resumen.get("gastos_generales", subtotal * 0.15)
+    utilidades = resumen.get("utilidades", subtotal * 0.10)
+    neto = resumen.get("neto", subtotal + gastos_gen + utilidades)
+    iva = resumen.get("iva", neto * 0.19)
+    total = resumen.get("total", neto + iva)
     
     resumen_rows = [
         ("Subtotal Directo:", subtotal),
@@ -349,6 +477,70 @@ def generar_presupuesto_excel(datos: dict, output_path: str) -> str:
     
     # Congelar paneles
     ws.freeze_panes = "A5"
+
+    # ─── KPI ejecutivos y condiciones comerciales ────────────────────────────
+    ws_exec["A8"] = "Indicador"
+    ws_exec["B8"] = "Valor"
+    ws_exec["C8"] = "Referencia"
+    for col in ["A", "B", "C"]:
+        cell = ws_exec[f"{col}8"]
+        cell.font = Font(name='Calibri', bold=True, color="FFFFFF", size=10)
+        cell.fill = PatternFill(fill_type="solid", fgColor=azul_oscuro)
+        cell.alignment = Alignment(horizontal="center", vertical="center")
+
+    indicadores = [
+        ("Subtotal directo", subtotal, "Base técnica"),
+        ("Gastos generales", gastos_gen, "Administración y soporte"),
+        ("Utilidades", utilidades, "Margen objetivo"),
+        ("Valor neto", neto, "Sin IVA"),
+        ("IVA", iva, "19%"),
+        ("Total oferta", total, "Monto final"),
+    ]
+    fila_exec = 9
+    for idx, (nombre, valor, ref) in enumerate(indicadores):
+        ws_exec[f"A{fila_exec}"] = nombre
+        ws_exec[f"B{fila_exec}"] = valor
+        ws_exec[f"C{fila_exec}"] = ref
+        ws_exec[f"B{fila_exec}"].number_format = '#,##0' if moneda == "CLP" else '#,##0.00'
+        ws_exec[f"A{fila_exec}"].font = Font(name='Calibri', bold=(nombre == "Total oferta"), color=azul_oscuro)
+        if nombre == "Total oferta":
+            for c in ["A", "B", "C"]:
+                ws_exec[f"{c}{fila_exec}"].fill = PatternFill(fill_type="solid", fgColor=dorado)
+                ws_exec[f"{c}{fila_exec}"].font = Font(name='Calibri', bold=True, color=azul_oscuro, size=11)
+        else:
+            fill = gris_claro if idx % 2 == 0 else "FFFFFF"
+            for c in ["A", "B", "C"]:
+                ws_exec[f"{c}{fila_exec}"].fill = PatternFill(fill_type="solid", fgColor=fill)
+        for c in ["A", "B", "C"]:
+            ws_exec[f"{c}{fila_exec}"].alignment = Alignment(horizontal="left" if c != "B" else "right", vertical="center")
+            ws_exec[f"{c}{fila_exec}"].border = border_thin
+        fila_exec += 1
+
+    fila_exec += 1
+    ws_exec.merge_cells(f"A{fila_exec}:C{fila_exec}")
+    ws_exec[f"A{fila_exec}"] = "Condiciones comerciales"
+    ws_exec[f"A{fila_exec}"].font = Font(name='Calibri', bold=True, color="FFFFFF", size=10)
+    ws_exec[f"A{fila_exec}"].fill = PatternFill(fill_type="solid", fgColor=azul_medio)
+    ws_exec[f"A{fila_exec}"].alignment = Alignment(horizontal="left", vertical="center")
+
+    condiciones = [
+        f"Validez de oferta: {resumen.get('validez_oferta', '30 días corridos desde emisión')}",
+        f"Plazo de ejecución: {resumen.get('plazo_ejecucion', 'Según programación contractual')}",
+        f"Supuestos relevantes: {resumen.get('supuestos', 'Sujeto a validación de alcance, accesos y ventanas operativas')}",
+    ]
+    for item in condiciones:
+        fila_exec += 1
+        ws_exec.merge_cells(f"A{fila_exec}:C{fila_exec}")
+        ws_exec[f"A{fila_exec}"] = f"• {item}"
+        ws_exec[f"A{fila_exec}"].font = Font(name='Calibri', size=9, color="1a1a2e")
+        ws_exec[f"A{fila_exec}"].alignment = Alignment(horizontal="left", vertical="top", wrap_text=True)
+        ws_exec[f"A{fila_exec}"].fill = PatternFill(fill_type="solid", fgColor="FFFFFF")
+        ws_exec[f"A{fila_exec}"].border = border_thin
+
+    ws_exec.column_dimensions["A"].width = 34
+    ws_exec.column_dimensions["B"].width = 20
+    ws_exec.column_dimensions["C"].width = 34
+    ws_exec.freeze_panes = "A9"
     
     wb.save(output_path)
     return output_path
@@ -383,7 +575,7 @@ def generar_informe_pdf(contenido_md: str, datos_proyecto: dict, output_path: st
     
     story = []
     
-    # Portada
+    # Portada ejecutiva
     story.append(Spacer(1, 2*cm))
     
     banner = Table([["INFORME TÉCNICO"]], colWidths=[17*cm])
@@ -399,12 +591,26 @@ def generar_informe_pdf(contenido_md: str, datos_proyecto: dict, output_path: st
     story.append(banner)
     story.append(Spacer(1, 0.5*cm))
     
-    proyecto_nombre = datos_proyecto.get("proyecto", {}).get("nombre", "Proyecto")
+    proyecto_obj = datos_proyecto.get("proyecto", {}) or {}
+    proyecto_nombre = proyecto_obj.get("nombre", "Proyecto")
+    cliente = proyecto_obj.get("mandante", "Cliente no informado")
+    modalidad = proyecto_obj.get("modalidad", "No informada")
+    plazo = proyecto_obj.get("plazo_ejecucion", "No informado")
     story.append(Paragraph(proyecto_nombre, estilo_h1))
+    story.append(Paragraph(
+        f"Cliente / Mandante: <b>{cliente}</b> · Modalidad: <b>{modalidad}</b> · Plazo: <b>{plazo}</b>",
+        ParagraphStyle('meta_info', fontSize=9, alignment=TA_CENTER, textColor=COLOR_TEXTO, spaceAfter=6),
+    ))
     story.append(Spacer(1, 0.3*cm))
-    story.append(Paragraph(f"Fecha: {datetime.now().strftime('%d de %B de %Y')}", 
+    story.append(Paragraph(f"Fecha: {_fmt_fecha_larga()}", 
                            ParagraphStyle('fecha', fontSize=10, alignment=TA_CENTER, 
                                           textColor=colors.grey)))
+    story.append(Spacer(1, 0.3*cm))
+    story.append(Paragraph(
+        "Este informe presenta alcance, metodología y criterios técnicos con enfoque "
+        "de toma de decisión ejecutiva para procesos de licitación.",
+        ParagraphStyle('portada_desc', fontSize=9, alignment=TA_CENTER, textColor=COLOR_TEXTO, leading=13),
+    ))
     story.append(PageBreak())
     
     # Contenido Markdown → PDF
@@ -433,16 +639,37 @@ def generar_informe_pdf(contenido_md: str, datos_proyecto: dict, output_path: st
         elif line.startswith('### '):
             story.append(Paragraph(line[4:], estilo_h3))
         elif line.startswith('- ') or line.startswith('* '):
-            story.append(Paragraph(f"• {line[2:]}", estilo_bullet))
+            story.append(Paragraph(f"• {_clean_inline_markdown(line[2:])}", estilo_bullet))
         elif line.startswith('**') and line.endswith('**'):
-            story.append(Paragraph(f"<b>{line[2:-2]}</b>", estilo_cuerpo))
+            story.append(Paragraph(f"<b>{_clean_inline_markdown(line[2:-2])}</b>", estilo_cuerpo))
         else:
-            # Procesar bold inline
-            formatted = line.replace('**', '<b>', 1)
-            while '**' in formatted:
-                formatted = formatted.replace('**', '</b>', 1)
-            story.append(Paragraph(formatted, estilo_cuerpo))
-    
+            story.append(Paragraph(_clean_inline_markdown(line), estilo_cuerpo))
+
+    # Cierre formal con supuestos y firmas
+    story.append(Spacer(1, 0.5 * cm))
+    clausulas = [
+        ["Declaración", "Contenido"],
+        ["Alcance", "La presente propuesta técnica se basa en antecedentes disponibles y puede ajustarse por cambios de alcance."],
+        ["Riesgos y restricciones", "Sujeto a accesos a terreno, ventanas operativas y validación documental de cliente."],
+        ["Control de cambios", "Toda modificación relevante debe ser registrada y aprobada por ambas partes."],
+    ]
+    clausulas_table = Table(clausulas, colWidths=[4.6 * cm, 12.4 * cm])
+    clausulas_table.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), COLOR_SECUNDARIO),
+        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("FONTSIZE", (0, 0), (-1, -1), 8),
+        ("GRID", (0, 0), (-1, -1), 0.3, colors.lightgrey),
+        ("LEFTPADDING", (0, 0), (-1, -1), 5),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 5),
+        ("TOPPADDING", (0, 0), (-1, -1), 4),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+    ]))
+    story.append(clausulas_table)
+    story.append(Spacer(1, 0.45 * cm))
+    story.append(_seccion_firma_table())
+
     story.append(Spacer(1, 1*cm))
     story.append(HRFlowable(width="100%", thickness=1, color=COLOR_PRIMARIO))
     story.append(Paragraph(
@@ -450,7 +677,11 @@ def generar_informe_pdf(contenido_md: str, datos_proyecto: dict, output_path: st
         ParagraphStyle('footer', fontSize=7, textColor=colors.grey, alignment=TA_CENTER)
     ))
     
-    doc.build(story)
+    doc.build(
+        story,
+        onFirstPage=lambda c, d: _draw_header_footer(c, d, "Informe Técnico"),
+        onLaterPages=lambda c, d: _draw_header_footer(c, d, "Informe Técnico"),
+    )
     return output_path
 
 

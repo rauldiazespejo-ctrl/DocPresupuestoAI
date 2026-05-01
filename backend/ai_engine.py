@@ -4,7 +4,8 @@ import json
 import os
 from backend.ai_prompts import (
     build_prompt_analisis, build_prompt_presupuesto,
-    build_prompt_informe, build_prompt_propuesta, clean_json_response
+    build_prompt_informe, build_prompt_propuesta, clean_json_response,
+    ensure_professional_markdown_structure
 )
 
 class AIEngine:
@@ -56,17 +57,40 @@ class AIEngine:
         """Genera un presupuesto completo basado en las bases"""
         prompt = build_prompt_presupuesto(datos_proyecto, texto_bases)
         response = self._call_llm(prompt, max_tokens=4096)
-        return clean_json_response(response)
+        parsed = clean_json_response(response)
+
+        # Normalización mínima para entregar JSON utilizable al generador.
+        if not isinstance(parsed, dict):
+            parsed = {}
+        resumen = parsed.get("resumen") or {}
+        if not isinstance(resumen, dict):
+            resumen = {}
+        resumen.setdefault("nombre_proyecto", (datos_proyecto.get("proyecto") or {}).get("nombre", "Proyecto"))
+        resumen.setdefault("cliente", (datos_proyecto.get("proyecto") or {}).get("mandante", "Cliente no informado"))
+        resumen.setdefault("fecha", "")
+        resumen.setdefault("moneda", (datos_proyecto.get("proyecto") or {}).get("moneda", "CLP") or "CLP")
+        resumen.setdefault("validez_oferta", "30 días corridos")
+        resumen.setdefault("plazo_ejecucion", (datos_proyecto.get("proyecto") or {}).get("plazo_ejecucion", "Según bases"))
+        resumen.setdefault(
+            "supuestos",
+            "Sujeto a validación de alcance definitivo, accesos operativos y antecedentes complementarios del cliente.",
+        )
+        parsed["resumen"] = resumen
+        if not isinstance(parsed.get("partidas"), list):
+            parsed["partidas"] = []
+        return parsed
 
     def generar_informe_tecnico(self, datos_proyecto: dict, texto_bases: str) -> str:
         """Genera el informe técnico en Markdown"""
         prompt = build_prompt_informe(datos_proyecto, texto_bases)
-        return self._call_llm(prompt, max_tokens=4096)
+        raw = self._call_llm(prompt, max_tokens=4096)
+        return ensure_professional_markdown_structure(raw, kind="informe")
 
     def generar_propuesta_tecnica(self, datos_proyecto: dict, texto_bases: str) -> str:
         """Genera la propuesta técnica en Markdown"""
         prompt = build_prompt_propuesta(datos_proyecto, texto_bases)
-        return self._call_llm(prompt, max_tokens=4096)
+        raw = self._call_llm(prompt, max_tokens=4096)
+        return ensure_professional_markdown_structure(raw, kind="propuesta")
 
     def consulta_libre(self, pregunta: str, contexto: str) -> str:
         """Consulta libre sobre el documento"""
