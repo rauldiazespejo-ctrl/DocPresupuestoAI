@@ -421,6 +421,52 @@ async def listar_proyectos(db: Session = Depends(get_db)):
         })
     return salida
 
+
+@app.get("/api/dashboard/ejecutivo")
+async def dashboard_ejecutivo(db: Session = Depends(get_db)):
+    proyectos = db.query(Proyecto).order_by(Proyecto.fecha_creacion.desc()).all()
+    semaforos = []
+    for p in proyectos:
+        s = await _semaforo_ejecutivo_proyecto(p.id, db)
+        semaforos.append({"proyecto_id": p.id, "nombre": p.nombre, "semaforo": s})
+
+    items = (
+        db.query(PlanCierreItem)
+        .filter((PlanCierreItem.estado != "resuelto") | (PlanCierreItem.estado.is_(None)))
+        .order_by(PlanCierreItem.fecha_actualizacion.desc())
+        .all()
+    )
+    mapa_proy = {p.id: p for p in proyectos}
+    ahora = datetime.utcnow()
+
+    def _score(i: PlanCierreItem) -> int:
+        prioridad = (i.prioridad or "media").lower()
+        base = 300 if prioridad == "alta" else (200 if prioridad == "media" else 100)
+        if i.fecha_compromiso:
+            if i.fecha_compromiso < ahora:
+                base += 120
+            elif i.fecha_compromiso <= (ahora + timedelta(days=2)):
+                base += 60
+        return base
+
+    top_items = sorted(items, key=_score, reverse=True)[:3]
+    top_criticas = [{
+        "item_id": i.id,
+        "proyecto_id": i.proyecto_id,
+        "proyecto_nombre": (mapa_proy.get(i.proyecto_id).nombre if mapa_proy.get(i.proyecto_id) else f"Proyecto {i.proyecto_id}"),
+        "titulo": i.titulo,
+        "prioridad": i.prioridad or "media",
+        "owner": i.owner or "equipo",
+        "fecha_compromiso": i.fecha_compromiso.isoformat() if i.fecha_compromiso else None,
+        "estado": i.estado or "pendiente",
+    } for i in top_items]
+
+    return {
+        "proyectos_total": len(proyectos),
+        "semaforos": semaforos,
+        "top_acciones_criticas": top_criticas,
+    }
+
 @app.get("/api/proyectos/{proyecto_id}")
 async def obtener_proyecto(proyecto_id: int, db: Session = Depends(get_db)):
     proyecto = db.query(Proyecto).filter(Proyecto.id == proyecto_id).first()

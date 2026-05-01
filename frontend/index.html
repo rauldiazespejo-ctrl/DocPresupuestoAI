@@ -241,6 +241,10 @@ tfoot td{padding:10px 14px;color:var(--blanco);font-weight:700;}
 .exec-kpi .lbl{font-size:0.75rem;color:#6b7a8a;}
 .exec-filter{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;}
 .btn-filter-active{box-shadow:0 0 0 2px rgba(46,125,155,0.25) inset;}
+.exec-critical-list{display:flex;flex-direction:column;gap:8px;margin-bottom:12px;}
+.exec-critical-item{padding:10px;border-radius:10px;border:1px solid #f2d6d6;background:#fff8f8;}
+.exec-critical-title{font-size:0.82rem;font-weight:700;color:#8a1f1f;}
+.exec-critical-meta{font-size:0.74rem;color:#8a5b5b;margin-top:2px;}
 
 /* ═══════════════════════════════════════════════════
    MODAL
@@ -564,6 +568,7 @@ tfoot td{padding:10px 14px;color:var(--blanco);font-weight:700;}
           <button id="btnFiltroRiesgo" class="btn btn-secondary btn-sm" onclick="aplicarFiltroDashboard('riesgo')">Solo riesgo</button>
           <button id="btnFiltroAptos" class="btn btn-secondary btn-sm" onclick="aplicarFiltroDashboard('aptos')">Solo aptos</button>
         </div>
+        <div id="execTopCriticas" class="exec-critical-list"></div>
         <div class="proj-list" id="dashboardProjects">
           <div class="text-center text-muted" style="padding:40px">
             <div style="font-size:3rem;margin-bottom:12px">📂</div>
@@ -1559,12 +1564,45 @@ function aplicarFiltroDashboard(filtro) {
   cargarDashboard();
 }
 
+function ordenCriticidadProyecto(a, b) {
+  const rank = { rojo: 0, amarillo: 1, verde: 2 };
+  const sa = semaforoProyectoMeta(a);
+  const sb = semaforoProyectoMeta(b);
+  const ra = rank[sa.color || 'amarillo'] ?? 1;
+  const rb = rank[sb.color || 'amarillo'] ?? 1;
+  if(ra !== rb) return ra - rb;
+  const va = Number(sa.vencidas || 0);
+  const vb = Number(sb.vencidas || 0);
+  if(va !== vb) return vb - va;
+  const aa = Number(sa.avance_pct || 0);
+  const ab = Number(sb.avance_pct || 0);
+  return aa - ab;
+}
+
+function renderTopAccionesCriticas(items=[]) {
+  const box = document.getElementById('execTopCriticas');
+  if(!box) return;
+  if(!items.length) {
+    box.innerHTML = '<div class="text-muted" style="font-size:0.78rem;">Sin acciones críticas abiertas en este momento.</div>';
+    return;
+  }
+  box.innerHTML = items.map(i => `
+    <div class="exec-critical-item">
+      <div class="exec-critical-title">🚨 ${i.titulo}</div>
+      <div class="exec-critical-meta">${i.proyecto_nombre || ('Proyecto ' + i.proyecto_id)} · Prioridad ${String(i.prioridad || 'media').toUpperCase()} · Owner: ${i.owner || 'equipo'} · SLA: ${formatoFechaCorta(i.fecha_compromiso)}</div>
+    </div>
+  `).join('');
+}
+
 /* ═══════════════════════════════════════════════════════════════════════════
    DASHBOARD
 ═══════════════════════════════════════════════════════════════════════════ */
 async function cargarDashboard() {
   try {
-    const proyectos = await apiFetch('/api/proyectos', {}, { context: 'Carga de dashboard' });
+    const [proyectos, ejecutivo] = await Promise.all([
+      apiFetch('/api/proyectos', {}, { context: 'Carga de dashboard' }),
+      apiFetch('/api/dashboard/ejecutivo', {}, { context: 'Panel ejecutivo', timeoutMs: 15000 })
+    ]);
     estado.proyectos = proyectos;
     renderChecklistOnboarding();
     document.getElementById('statProyectos').textContent = proyectos.length;
@@ -1581,6 +1619,7 @@ async function cargarDashboard() {
     if(ekA) ekA.textContent = String(amarillos);
     if(ekV) ekV.textContent = String(verdes);
     if(ekP) ekP.textContent = `${aptosPct}%`;
+    renderTopAccionesCriticas((ejecutivo && ejecutivo.top_acciones_criticas) || []);
     
     // Lista sidebar
     const sb = document.getElementById('sidebarProjects');
@@ -1597,12 +1636,15 @@ async function cargarDashboard() {
     
     // Lista dashboard
     const dash = document.getElementById('dashboardProjects');
-    const proyectosFiltrados = proyectos.filter(p => {
+    const proyectosFiltrados = proyectos
+      .slice()
+      .sort(ordenCriticidadProyecto)
+      .filter(p => {
       const meta = semaforoProyectoMeta(p);
       if(estado.dashboardFilter === 'riesgo') return meta.color === 'rojo' || meta.color === 'amarillo';
       if(estado.dashboardFilter === 'aptos') return (meta.estado_preflight || '') === 'apto';
       return true;
-    });
+      });
     if(proyectosFiltrados.length===0){
       dash.innerHTML = `
         <div class="text-center text-muted" style="padding:40px">
