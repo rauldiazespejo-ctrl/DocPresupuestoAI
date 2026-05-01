@@ -60,7 +60,7 @@ from database.models import (
     PlanCierreItem,
 )
 from backend.extractor import extract_text
-from backend.ai_engine import AIEngine
+from backend.ai_engine import AIEngine, IAAuthError, IARateLimitError
 from backend.generator import (
     generar_presupuesto_pdf,
     generar_presupuesto_excel,
@@ -271,6 +271,14 @@ ia_config = {}
 ML_DIR = EXPORTS_DIR / "ml"
 ML_DIR.mkdir(exist_ok=True)
 ML_ATRACTIVIDAD_MODEL_PATH = ML_DIR / "atractividad_ml_v2.json"
+
+
+def _ia_http_exception(exc: Exception, operacion: str) -> HTTPException:
+    if isinstance(exc, IAAuthError):
+        return HTTPException(status_code=401, detail=str(exc))
+    if isinstance(exc, IARateLimitError):
+        return HTTPException(status_code=429, detail=str(exc))
+    return HTTPException(status_code=500, detail=f"{operacion}: {exc}")
 
 
 def _norm_header(value: str) -> str:
@@ -771,7 +779,11 @@ async def subir_documento(
         engine = AIEngine(provider=provider, api_key=api_key, model=model)
         datos_extraidos = engine.analizar_bases(texto)
     except Exception as e:
-        datos_extraidos = {"error": str(e), "texto_raw": texto[:2000]}
+        try:
+            file_path.unlink(missing_ok=True)
+        except OSError:
+            pass
+        raise _ia_http_exception(e, "Análisis con IA") from e
     
     # Guardar en BD
     proyecto = Proyecto(
@@ -857,8 +869,8 @@ async def generar_documento(req: GenerarDocumentoRequest, db: Session = Depends(
             raise HTTPException(status_code=400, detail=f"Tipo de documento no válido: {req.tipo}")
         
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error generando documento: {str(e)}")
-    
+        raise _ia_http_exception(e, "Error generando documento") from e
+
     # Guardar en BD
     doc = Documento(
         proyecto_id=proyecto.id,
@@ -1429,8 +1441,8 @@ async def consulta_libre(req: ConsultaRequest, db: Session = Depends(get_db)):
         )
         respuesta = engine.consulta_libre(req.pregunta, contexto)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-    
+        raise _ia_http_exception(e, "Consulta IA") from e
+
     return {"respuesta": respuesta, "pregunta": req.pregunta}
 
 # ─── DATOS EXTRAÍDOS ─────────────────────────────────────────────────────────

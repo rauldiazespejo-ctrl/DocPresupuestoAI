@@ -8,6 +8,32 @@ from backend.ai_prompts import (
     ensure_professional_markdown_structure
 )
 
+
+class IAAuthError(Exception):
+    """API key rechazada o expirada (401)."""
+
+
+class IARateLimitError(Exception):
+    """Cuota o límite de velocidad del proveedor."""
+
+
+def _auth_message(provider: str) -> str:
+    if provider == "zai":
+        return (
+            "ZAI respondió 401 (token incorrecto o expirado). "
+            "Genera una API key válida en el panel de Z.AI y pégala en «Configurar IA» (modelo GLM acorde a tu plan)."
+        )
+    if provider == "openai":
+        return (
+            "OpenAI respondió 401 (API key inválida o revocada). "
+            "Revisa la clave en https://platform.openai.com y actualízala en «Configurar IA»."
+        )
+    return (
+        "El proveedor de IA rechazó la autenticación (401). "
+        "Actualiza la API key en «Configurar IA»."
+    )
+
+
 class AIEngine:
     def __init__(self, provider: str = "openai", api_key: str = "", model: str = ""):
         self.provider = provider
@@ -28,24 +54,49 @@ class AIEngine:
             self.client = anthropic.Anthropic(api_key=api_key)
 
     def _call_llm(self, prompt: str, max_tokens: int = 4096) -> str:
-        if self.provider in {"openai", "zai"}:
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=[{"role": "user", "content": prompt}],
-                max_tokens=max_tokens,
-                temperature=0.3
-            )
-            return response.choices[0].message.content
-        
-        elif self.provider == "anthropic":
-            response = self.client.messages.create(
-                model=self.model,
-                max_tokens=max_tokens,
-                messages=[{"role": "user", "content": prompt}]
-            )
-            return response.content[0].text
-        
-        return ""
+        try:
+            if self.provider in {"openai", "zai"}:
+                response = self.client.chat.completions.create(
+                    model=self.model,
+                    messages=[{"role": "user", "content": prompt}],
+                    max_tokens=max_tokens,
+                    temperature=0.3,
+                )
+                return response.choices[0].message.content or ""
+
+            if self.provider == "anthropic":
+                response = self.client.messages.create(
+                    model=self.model,
+                    max_tokens=max_tokens,
+                    messages=[{"role": "user", "content": prompt}],
+                )
+                return response.content[0].text
+
+            return ""
+        except openai.AuthenticationError as e:
+            raise IAAuthError(_auth_message(self.provider)) from e
+        except openai.APIStatusError as e:
+            if e.status_code == 401:
+                raise IAAuthError(_auth_message(self.provider)) from e
+            if e.status_code == 429:
+                raise IARateLimitError(
+                    f"Límite de uso del proveedor ({self.provider}). Espera unos minutos o revisa tu plan."
+                ) from e
+            raise RuntimeError(f"Error del proveedor {self.provider} ({e.status_code}): {e.message}") from e
+        except openai.APIConnectionError as e:
+            raise RuntimeError(f"No se pudo conectar al proveedor {self.provider}: {e.message}") from e
+        except anthropic.AuthenticationError as e:
+            raise IAAuthError(
+                "Anthropic rechazó la API Key (401). Revisa la clave en console.anthropic.com y «Configurar IA»."
+            ) from e
+        except anthropic.APIStatusError as e:
+            if getattr(e, "status_code", None) == 401:
+                raise IAAuthError(
+                    "Anthropic rechazó la autenticación (401). Actualiza la API Key en «Configurar IA»."
+                ) from e
+            if getattr(e, "status_code", None) == 429:
+                raise IARateLimitError("Límite de uso en Anthropic. Espera o revisa tu plan.") from e
+            raise RuntimeError(f"Error Anthropic: {getattr(e, 'message', str(e))}") from e
 
     def analizar_bases(self, texto: str) -> dict:
         """Analiza las bases del proyecto y extrae información clave"""
