@@ -791,6 +791,108 @@ async def evaluar_entrega_readiness(proyecto_id: int, db: Session = Depends(get_
         ),
     }
 
+
+@app.get("/api/proyectos/{proyecto_id}/preflight-entrega")
+async def ejecutar_preflight_entrega(proyecto_id: int, db: Session = Depends(get_db)):
+    """
+    Veredicto final previo a envío a cliente:
+    combina readiness general + QA documental.
+    """
+    proyecto = db.query(Proyecto).filter(Proyecto.id == proyecto_id).first()
+    if not proyecto:
+        raise HTTPException(status_code=404, detail="Proyecto no encontrado")
+
+    # Reutilizar lógica de readiness.
+    docs = db.query(Documento).filter(Documento.proyecto_id == proyecto_id).all()
+    requisitos = db.query(RequisitoDocumental).filter(RequisitoDocumental.proyecto_id == proyecto_id).all()
+    evidencias = db.query(EvidenciaRequisito).filter(EvidenciaRequisito.proyecto_id == proyecto_id).all()
+    predicciones = db.query(PrediccionAdjudicacion).filter(PrediccionAdjudicacion.proyecto_id == proyecto_id).all()
+    ofertas = db.query(OfertaLicitacion).filter(OfertaLicitacion.proyecto_id == proyecto_id).all()
+
+    tipos_docs = {d.tipo for d in docs}
+    tiene_entregables_base = any(t in tipos_docs for t in {"presupuesto_pdf", "presupuesto_excel", "informe_pdf", "propuesta_pdf"})
+    tiene_indice_documental = any(t in tipos_docs for t in {"indice_documental_pdf", "indice_documental_excel"})
+    total_requisitos = len(requisitos)
+    requisitos_cumplidos = sum(1 for r in requisitos if (r.estado or "").strip().lower() == "cumplido")
+    cumplimiento_requisitos_pct = round((requisitos_cumplidos / total_requisitos) * 100, 2) if total_requisitos else 0.0
+    tiene_evidencias = len(evidencias) > 0
+    tiene_analitica_comercial = len(predicciones) > 0 and len(ofertas) > 0
+    tiene_datos_ia = bool(proyecto.datos_extraidos)
+
+    score_readiness = 0
+    brechas_readiness = []
+    if tiene_datos_ia:
+        score_readiness += 20
+    else:
+        brechas_readiness.append("Falta análisis base de IA del proyecto.")
+    if tiene_entregables_base:
+        score_readiness += 25
+    else:
+        brechas_readiness.append("No hay entregables base (presupuesto/informe/propuesta) generados.")
+    if tiene_indice_documental:
+        score_readiness += 15
+    else:
+        brechas_readiness.append("Falta índice documental exportado (PDF o Excel).")
+    if cumplimiento_requisitos_pct >= 80:
+        score_readiness += 20
+    elif cumplimiento_requisitos_pct >= 50:
+        score_readiness += 10
+        brechas_readiness.append("Cumplimiento documental parcial; elevar requisitos cumplidos sobre 80%.")
+    else:
+        brechas_readiness.append("Cumplimiento documental bajo; completar requisitos críticos.")
+    if tiene_evidencias:
+        score_readiness += 10
+    else:
+        brechas_readiness.append("No hay evidencias documentales cargadas.")
+    if tiene_analitica_comercial:
+        score_readiness += 10
+    else:
+        brechas_readiness.append("Falta analítica comercial (ofertas y predicciones) para respaldo ejecutivo.")
+
+    qa_docs = [_qa_check_document(d) for d in docs]
+    score_qa = round(sum(x["score_qa"] for x in qa_docs) / len(qa_docs), 2) if qa_docs else 0.0
+    brechas_qa = []
+    plan_cierre = []
+    for ev in qa_docs:
+        if ev["score_qa"] < 85:
+            brechas_qa.append(f"{ev['nombre']} ({ev['score_qa']}/100)")
+            for rec in ev.get("recomendaciones", [])[:2]:
+                if rec not in plan_cierre:
+                    plan_cierre.append(rec)
+
+    score_global = round((score_readiness * 0.55) + (score_qa * 0.45), 2)
+    brechas_criticas = brechas_readiness + brechas_qa
+    if score_global >= 85 and len(brechas_criticas) <= 2:
+        estado_final = "apto"
+    elif score_global >= 70:
+        estado_final = "condicional"
+    else:
+        estado_final = "no_apto"
+
+    apto_para_cliente = estado_final == "apto"
+    if not plan_cierre and not apto_para_cliente:
+        plan_cierre = [
+            "Regenerar documentos críticos en modo PRO.",
+            "Completar evidencias y elevar cumplimiento documental sobre 80%.",
+            "Recalcular predicción y bid leveling para respaldo ejecutivo.",
+        ]
+
+    return {
+        "proyecto_id": proyecto_id,
+        "estado_final": estado_final,
+        "apto_para_cliente": apto_para_cliente,
+        "score_global": score_global,
+        "score_readiness": score_readiness,
+        "score_qa": score_qa,
+        "brechas_criticas": brechas_criticas,
+        "plan_cierre": plan_cierre[:8],
+        "mensaje": (
+            "Proyecto apto para entrega cliente."
+            if apto_para_cliente
+            else "Proyecto con brechas para entrega; ejecutar plan de cierre."
+        ),
+    }
+
 # ─── CONSULTA LIBRE ───────────────────────────────────────────────────────────
 @app.post("/api/consulta")
 async def consulta_libre(req: ConsultaRequest, db: Session = Depends(get_db)):

@@ -474,6 +474,7 @@ tfoot td{padding:10px 14px;color:var(--blanco);font-weight:700;}
         <button class="btn btn-secondary btn-sm" onclick="cargarDemoLocal()">🧪 Cargar demo</button>
         <button class="btn btn-secondary btn-sm" onclick="reiniciarDemoLocal()">♻️ Reset demo</button>
         <button class="btn btn-secondary btn-sm" onclick="evaluarReadinessProyectoActual()">🏁 Readiness</button>
+        <button class="btn btn-secondary btn-sm" onclick="ejecutarPreflightEntrega()">🛫 Preflight</button>
         <button class="btn btn-secondary btn-sm" onclick="abrirModal('modalLegal')">📜 Términos</button>
         <button class="btn btn-secondary btn-sm" onclick="abrirModal('modalConfig')">⚙️ Configurar IA</button>
         <button class="btn btn-primary btn-sm" onclick="navegar('nuevo')">➕ Nuevo Proyecto</button>
@@ -2925,6 +2926,39 @@ async function evaluarReadinessProyectoActual() {
   } catch (e) {
     hideLoader();
     mostrarAlerta('alertArea', 'error', e.message || 'No se pudo evaluar readiness.');
+  }
+}
+
+async function ejecutarPreflightEntrega() {
+  let proyectoId = null;
+  if(estado.proyectoActual && estado.proyectoActual.id) {
+    proyectoId = estado.proyectoActual.id;
+  } else {
+    const selGen = document.getElementById('selectProyectoGenerar');
+    if(selGen && selGen.value) proyectoId = parseInt(selGen.value);
+  }
+  if(!proyectoId) {
+    mostrarAlerta('alertArea', 'warning', 'Selecciona un proyecto para ejecutar preflight de entrega.');
+    return;
+  }
+  showLoader('🛫 Ejecutando preflight de entrega cliente...');
+  try {
+    const data = await apiFetch(`/api/proyectos/${proyectoId}/preflight-entrega`, {}, { context: 'Preflight de entrega' });
+    hideLoader();
+    const estadoFinal = String(data.estado_final || '').toUpperCase();
+    const tipo = data.apto_para_cliente ? 'success' : (data.estado_final === 'condicional' ? 'warning' : 'error');
+    const brechas = (data.brechas_criticas || []).slice(0, 4).map(x => `• ${x}`).join('<br/>');
+    const acciones = (data.plan_cierre || []).slice(0, 4).map(x => `• ${x}`).join('<br/>');
+    mostrarAlerta(
+      'alertArea',
+      tipo,
+      `🛫 Preflight: <b>${estadoFinal}</b> · Score global ${data.score_global || 0}/100<br/>${data.mensaje || ''}` +
+      `${brechas ? `<br/><br/><b>Brechas críticas:</b><br/>${brechas}` : ''}` +
+      `${acciones ? `<br/><br/><b>Plan de cierre:</b><br/>${acciones}` : ''}`
+    );
+  } catch (e) {
+    hideLoader();
+    mostrarAlerta('alertArea', 'error', e.message || 'No se pudo ejecutar preflight.');
   }
 }
 
