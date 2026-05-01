@@ -235,6 +235,12 @@ tfoot td{padding:10px 14px;color:var(--blanco);font-weight:700;}
 .pstatus.amarillo{background:#fff5d6;color:#835d00;}
 .pstatus.rojo{background:#fde9e9;color:#7d1111;}
 .proj-row .pactions{margin-left:auto;display:flex;gap:8px;}
+.exec-kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:14px;}
+.exec-kpi{padding:12px;border-radius:12px;border:1px solid #e8eef4;background:#fff;}
+.exec-kpi .val{font-size:1.2rem;font-weight:800;color:var(--azul);}
+.exec-kpi .lbl{font-size:0.75rem;color:#6b7a8a;}
+.exec-filter{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;}
+.btn-filter-active{box-shadow:0 0 0 2px rgba(46,125,155,0.25) inset;}
 
 /* ═══════════════════════════════════════════════════
    MODAL
@@ -296,10 +302,12 @@ tfoot td{padding:10px 14px;color:var(--blanco);font-weight:700;}
   .nav-item{padding:14px;justify-content:center;}
   .main-content{margin-left:70px;}
   .stats-grid{grid-template-columns:1fr 1fr;}
+  .exec-kpi-grid{grid-template-columns:1fr 1fr;}
   .form-grid,.datos-grid{grid-template-columns:1fr;}
 }
 @media(max-width:600px){
   .stats-grid{grid-template-columns:1fr;}
+  .exec-kpi-grid{grid-template-columns:1fr;}
   .page{padding:16px;}
   .topbar{padding:12px 16px;}
 }
@@ -544,6 +552,17 @@ tfoot td{padding:10px 14px;color:var(--blanco);font-weight:700;}
         <div class="card-header">
           <div class="card-icon">📁</div>
           <div><h2>Proyectos</h2><p>Gestiona todos tus proyectos</p></div>
+        </div>
+        <div class="exec-kpi-grid">
+          <div class="exec-kpi"><div class="val" id="execKpiRojos">0</div><div class="lbl">Riesgo alto (rojo)</div></div>
+          <div class="exec-kpi"><div class="val" id="execKpiAmarillos">0</div><div class="lbl">Atención (amarillo)</div></div>
+          <div class="exec-kpi"><div class="val" id="execKpiVerdes">0</div><div class="lbl">Controlado (verde)</div></div>
+          <div class="exec-kpi"><div class="val" id="execKpiAptos">0%</div><div class="lbl">% proyectos aptos</div></div>
+        </div>
+        <div class="exec-filter">
+          <button id="btnFiltroTodos" class="btn btn-secondary btn-sm btn-filter-active" onclick="aplicarFiltroDashboard('todos')">Todos</button>
+          <button id="btnFiltroRiesgo" class="btn btn-secondary btn-sm" onclick="aplicarFiltroDashboard('riesgo')">Solo riesgo</button>
+          <button id="btnFiltroAptos" class="btn btn-secondary btn-sm" onclick="aplicarFiltroDashboard('aptos')">Solo aptos</button>
         </div>
         <div class="proj-list" id="dashboardProjects">
           <div class="text-center text-muted" style="padding:40px">
@@ -1159,6 +1178,7 @@ let estado = {
   backendOnline: false,
   backendLastCheck: '',
   onboardingOmitido: localStorage.getItem('docpresupuesto_onboarding_omitido') === '1',
+  dashboardFilter: 'todos',
   qualityMode: 'standard',
   tipoDocSeleccionado: null,
   escenariosSimulacion: [
@@ -1527,6 +1547,18 @@ function semaforoBadgeLabel(proyecto) {
   return { color, label };
 }
 
+function aplicarFiltroDashboard(filtro) {
+  estado.dashboardFilter = filtro || 'todos';
+  const btnTodos = document.getElementById('btnFiltroTodos');
+  const btnRiesgo = document.getElementById('btnFiltroRiesgo');
+  const btnAptos = document.getElementById('btnFiltroAptos');
+  [btnTodos, btnRiesgo, btnAptos].forEach(b => b && b.classList.remove('btn-filter-active'));
+  if(estado.dashboardFilter === 'riesgo' && btnRiesgo) btnRiesgo.classList.add('btn-filter-active');
+  else if(estado.dashboardFilter === 'aptos' && btnAptos) btnAptos.classList.add('btn-filter-active');
+  else if(btnTodos) btnTodos.classList.add('btn-filter-active');
+  cargarDashboard();
+}
+
 /* ═══════════════════════════════════════════════════════════════════════════
    DASHBOARD
 ═══════════════════════════════════════════════════════════════════════════ */
@@ -1536,6 +1568,19 @@ async function cargarDashboard() {
     estado.proyectos = proyectos;
     renderChecklistOnboarding();
     document.getElementById('statProyectos').textContent = proyectos.length;
+    const rojos = proyectos.filter(p => semaforoProyectoMeta(p).color === 'rojo').length;
+    const amarillos = proyectos.filter(p => semaforoProyectoMeta(p).color === 'amarillo').length;
+    const verdes = proyectos.filter(p => semaforoProyectoMeta(p).color === 'verde').length;
+    const aptos = proyectos.filter(p => (semaforoProyectoMeta(p).estado_preflight || '') === 'apto').length;
+    const aptosPct = proyectos.length ? Math.round((aptos / proyectos.length) * 100) : 0;
+    const ekR = document.getElementById('execKpiRojos');
+    const ekA = document.getElementById('execKpiAmarillos');
+    const ekV = document.getElementById('execKpiVerdes');
+    const ekP = document.getElementById('execKpiAptos');
+    if(ekR) ekR.textContent = String(rojos);
+    if(ekA) ekA.textContent = String(amarillos);
+    if(ekV) ekV.textContent = String(verdes);
+    if(ekP) ekP.textContent = `${aptosPct}%`;
     
     // Lista sidebar
     const sb = document.getElementById('sidebarProjects');
@@ -1552,16 +1597,22 @@ async function cargarDashboard() {
     
     // Lista dashboard
     const dash = document.getElementById('dashboardProjects');
-    if(proyectos.length===0){
+    const proyectosFiltrados = proyectos.filter(p => {
+      const meta = semaforoProyectoMeta(p);
+      if(estado.dashboardFilter === 'riesgo') return meta.color === 'rojo' || meta.color === 'amarillo';
+      if(estado.dashboardFilter === 'aptos') return (meta.estado_preflight || '') === 'apto';
+      return true;
+    });
+    if(proyectosFiltrados.length===0){
       dash.innerHTML = `
         <div class="text-center text-muted" style="padding:40px">
           <div style="font-size:3rem;margin-bottom:12px">📂</div>
-          <div style="font-size:1rem;font-weight:600;color:var(--azul)">Sin proyectos aún</div>
-          <div style="margin-top:8px">Crea tu primer proyecto subiendo las bases técnicas</div>
-          <button class="btn btn-primary mt-4" onclick="navegar('nuevo')">➕ Crear Primer Proyecto</button>
+          <div style="font-size:1rem;font-weight:600;color:var(--azul)">Sin resultados para este filtro</div>
+          <div style="margin-top:8px">Ajusta el filtro ejecutivo para visualizar otros proyectos</div>
+          <button class="btn btn-secondary mt-4" onclick="aplicarFiltroDashboard('todos')">Ver todos</button>
         </div>`;
     } else {
-      dash.innerHTML = proyectos.map(p=>`
+      dash.innerHTML = proyectosFiltrados.map(p=>`
         <div class="proj-row" onclick="seleccionarProyecto(${p.id})">
           <div style="font-size:1.8rem">📁</div>
           <div>
