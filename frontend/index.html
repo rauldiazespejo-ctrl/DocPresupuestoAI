@@ -473,6 +473,7 @@ tfoot td{padding:10px 14px;color:var(--blanco);font-weight:700;}
         <button class="btn btn-secondary btn-sm" onclick="abrirOnboarding()">🧭 Onboarding</button>
         <button class="btn btn-secondary btn-sm" onclick="cargarDemoLocal()">🧪 Cargar demo</button>
         <button class="btn btn-secondary btn-sm" onclick="reiniciarDemoLocal()">♻️ Reset demo</button>
+        <button class="btn btn-secondary btn-sm" onclick="evaluarReadinessProyectoActual()">🏁 Readiness</button>
         <button class="btn btn-secondary btn-sm" onclick="abrirModal('modalLegal')">📜 Términos</button>
         <button class="btn btn-secondary btn-sm" onclick="abrirModal('modalConfig')">⚙️ Configurar IA</button>
         <button class="btn btn-primary btn-sm" onclick="navegar('nuevo')">➕ Nuevo Proyecto</button>
@@ -2816,6 +2817,37 @@ async function reiniciarDemoLocal() {
   } catch (e) {
     hideLoader();
     mostrarAlerta('alertArea', 'error', e.message || 'No se pudo reiniciar la demo local.');
+  }
+}
+
+async function evaluarReadinessProyectoActual() {
+  let proyectoId = null;
+  if(estado.proyectoActual && estado.proyectoActual.id) {
+    proyectoId = estado.proyectoActual.id;
+  } else {
+    const selGen = document.getElementById('selectProyectoGenerar');
+    if(selGen && selGen.value) proyectoId = parseInt(selGen.value);
+  }
+  if(!proyectoId) {
+    mostrarAlerta('alertArea', 'warning', 'Selecciona un proyecto para evaluar readiness de entrega.');
+    return;
+  }
+  showLoader('🏁 Evaluando readiness de entrega...');
+  try {
+    const data = await apiFetch(`/api/proyectos/${proyectoId}/entrega-readiness`, {}, { context: 'Evaluación de readiness' });
+    hideLoader();
+    const brechas = (data.brechas || []).slice(0, 3).map(b => `• ${b}`).join('<br/>');
+    const score = data.score_readiness || 0;
+    const nivel = String(data.nivel || '').toUpperCase();
+    const badge = data.recomendado_para_cliente ? '✅' : '⚠️';
+    mostrarAlerta(
+      'alertArea',
+      data.recomendado_para_cliente ? 'success' : 'warning',
+      `${badge} Readiness ${score}/100 · Nivel ${nivel}<br/>${data.mensaje}${brechas ? `<br/><br/><b>Brechas clave:</b><br/>${brechas}` : ''}`
+    );
+  } catch (e) {
+    hideLoader();
+    mostrarAlerta('alertArea', 'error', e.message || 'No se pudo evaluar readiness.');
   }
 }
 

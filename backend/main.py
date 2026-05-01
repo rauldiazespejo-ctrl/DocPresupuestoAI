@@ -567,6 +567,97 @@ async def listar_documentos(proyecto_id: int, db: Session = Depends(get_db)):
         "download_url": f"/api/descargar/{d.id}"
     } for d in docs]
 
+
+@app.get("/api/proyectos/{proyecto_id}/entrega-readiness")
+async def evaluar_entrega_readiness(proyecto_id: int, db: Session = Depends(get_db)):
+    """
+    Evalúa si el proyecto está listo para entrega profesional a cliente.
+    Devuelve score, nivel y brechas accionables.
+    """
+    proyecto = db.query(Proyecto).filter(Proyecto.id == proyecto_id).first()
+    if not proyecto:
+        raise HTTPException(status_code=404, detail="Proyecto no encontrado")
+
+    docs = db.query(Documento).filter(Documento.proyecto_id == proyecto_id).all()
+    requisitos = db.query(RequisitoDocumental).filter(RequisitoDocumental.proyecto_id == proyecto_id).all()
+    evidencias = db.query(EvidenciaRequisito).filter(EvidenciaRequisito.proyecto_id == proyecto_id).all()
+    predicciones = db.query(PrediccionAdjudicacion).filter(PrediccionAdjudicacion.proyecto_id == proyecto_id).all()
+    ofertas = db.query(OfertaLicitacion).filter(OfertaLicitacion.proyecto_id == proyecto_id).all()
+
+    tipos_docs = {d.tipo for d in docs}
+    tiene_entregables_base = any(t in tipos_docs for t in {"presupuesto_pdf", "presupuesto_excel", "informe_pdf", "propuesta_pdf"})
+    tiene_indice_documental = any(t in tipos_docs for t in {"indice_documental_pdf", "indice_documental_excel"})
+    total_requisitos = len(requisitos)
+    requisitos_cumplidos = sum(1 for r in requisitos if (r.estado or "").strip().lower() == "cumplido")
+    cumplimiento_requisitos_pct = round((requisitos_cumplidos / total_requisitos) * 100, 2) if total_requisitos else 0.0
+    tiene_evidencias = len(evidencias) > 0
+    tiene_analitica_comercial = len(predicciones) > 0 and len(ofertas) > 0
+    tiene_datos_ia = bool(proyecto.datos_extraidos)
+
+    score = 0
+    brechas = []
+
+    if tiene_datos_ia:
+        score += 20
+    else:
+        brechas.append("Falta análisis base de IA del proyecto.")
+
+    if tiene_entregables_base:
+        score += 25
+    else:
+        brechas.append("No hay entregables base (presupuesto/informe/propuesta) generados.")
+
+    if tiene_indice_documental:
+        score += 15
+    else:
+        brechas.append("Falta índice documental exportado (PDF o Excel).")
+
+    if cumplimiento_requisitos_pct >= 80:
+        score += 20
+    elif cumplimiento_requisitos_pct >= 50:
+        score += 10
+        brechas.append("Cumplimiento documental parcial; elevar requisitos cumplidos sobre 80%.")
+    else:
+        brechas.append("Cumplimiento documental bajo; completar requisitos críticos.")
+
+    if tiene_evidencias:
+        score += 10
+    else:
+        brechas.append("No hay evidencias documentales cargadas.")
+
+    if tiene_analitica_comercial:
+        score += 10
+    else:
+        brechas.append("Falta analítica comercial (ofertas y predicciones) para respaldo ejecutivo.")
+
+    nivel = "pro" if score >= 85 else ("avanzado" if score >= 65 else "basico")
+    recomendado_para_cliente = score >= 75
+
+    return {
+        "proyecto_id": proyecto_id,
+        "score_readiness": score,
+        "nivel": nivel,
+        "recomendado_para_cliente": recomendado_para_cliente,
+        "metricas": {
+            "tiene_datos_ia": tiene_datos_ia,
+            "entregables_generados": len(docs),
+            "tiene_entregables_base": tiene_entregables_base,
+            "tiene_indice_documental": tiene_indice_documental,
+            "total_requisitos": total_requisitos,
+            "requisitos_cumplidos": requisitos_cumplidos,
+            "cumplimiento_requisitos_pct": cumplimiento_requisitos_pct,
+            "evidencias": len(evidencias),
+            "ofertas": len(ofertas),
+            "predicciones": len(predicciones),
+        },
+        "brechas": brechas,
+        "mensaje": (
+            "Proyecto listo para entrega cliente."
+            if recomendado_para_cliente
+            else "Proyecto aún no cumple estándar de entrega cliente; revisar brechas."
+        ),
+    }
+
 # ─── CONSULTA LIBRE ───────────────────────────────────────────────────────────
 @app.post("/api/consulta")
 async def consulta_libre(req: ConsultaRequest, db: Session = Depends(get_db)):
