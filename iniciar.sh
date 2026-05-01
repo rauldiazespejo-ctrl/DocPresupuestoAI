@@ -3,7 +3,8 @@
 #  DocPresupuestoAI - Script de inicio
 # ════════════════════════════════════════════════════
 
-cd /Users/rauldiaz/DocPresupuestoAI
+ROOT_DIR="$(cd "$(dirname "$0")" && pwd)"
+cd "$ROOT_DIR"
 
 echo ""
 echo "╔══════════════════════════════════════════════════╗"
@@ -25,7 +26,7 @@ echo "Para detener el servidor presiona CTRL+C"
 echo ""
 
 # Abrir navegador después de 2 segundos
-(sleep 2 && open /Users/rauldiaz/DocPresupuestoAI/frontend/index.html) &
+(sleep 2 && open "$ROOT_DIR/frontend/index.html") &
 
 # Iniciar servidor
-cd /Users/rauldiaz/DocPresupuestoAI && PYTHONPATH=/Users/rauldiaz/DocPresupuestoAI python3 -m uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload
+cd "$ROOT_DIR" && PYTHONPATH="$ROOT_DIR" python3 -m uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload

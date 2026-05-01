@@ -1,9 +1,28 @@
+import os
+import sys
+from pathlib import Path
+
 from sqlalchemy import create_engine, Column, Integer, String, Text, Float, DateTime, JSON, Boolean
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from datetime import datetime
 
-DATABASE_URL = "sqlite:///./docpresupuesto.db"
+
+def _database_file() -> str:
+    custom = (os.environ.get("DOCPE_DATA_DIR") or "").strip()
+    if custom:
+        p = Path(custom)
+        p.mkdir(parents=True, exist_ok=True)
+        return str(p / "docpresupuesto.db")
+    if getattr(sys, "frozen", False):
+        p = Path.home() / "Library" / "Application Support" / "DocPresupuestoAI"
+        p.mkdir(parents=True, exist_ok=True)
+        return str(p / "docpresupuesto.db")
+    root = Path(__file__).resolve().parents[1]
+    return str(root / "docpresupuesto.db")
+
+
+DATABASE_URL = f"sqlite:///{_database_file()}"
 engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()

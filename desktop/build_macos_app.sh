@@ -30,6 +30,10 @@ pyinstaller \
   --add-data "$ROOT_DIR/database:database" \
   --add-data "$ROOT_DIR/templates:templates" \
   --add-data "$ROOT_DIR/docs:docs" \
+  --hidden-import=backend.main \
+  --collect-all=uvicorn \
+  --collect-all=fastapi \
+  --collect-all=starlette \
   "$ROOT_DIR/desktop/app_desktop.py"
 
 PLIST_PATH="${APP_PATH}/Contents/Info.plist"

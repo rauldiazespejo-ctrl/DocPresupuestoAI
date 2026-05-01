@@ -18,8 +18,32 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 import openpyxl
 
-# Agregar paths
-sys.path.insert(0, "/Users/rauldiaz/DocPresupuestoAI")
+
+def _frozen_app() -> bool:
+    return getattr(sys, "frozen", False)
+
+
+def _repo_root() -> Path:
+    """Código y assets empaquetados (templates, etc.)."""
+    if _frozen_app():
+        return Path(getattr(sys, "_MEIPASS"))
+    return Path(__file__).resolve().parents[1]
+
+
+def _runtime_root() -> Path:
+    """Datos escribibles: SQLite, uploads, exports (fuera del .app en macOS)."""
+    if _frozen_app():
+        p = Path.home() / "Library" / "Application Support" / "DocPresupuestoAI"
+        p.mkdir(parents=True, exist_ok=True)
+        os.environ.setdefault("DOCPE_DATA_DIR", str(p))
+        return p
+    return Path(__file__).resolve().parents[1]
+
+
+REPO_ROOT = _repo_root()
+RUNTIME_ROOT = _runtime_root()
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 
 from database.models import (
     create_tables,
@@ -61,11 +85,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-BASE_DIR = Path("/Users/rauldiaz/DocPresupuestoAI")
-UPLOADS_DIR = BASE_DIR / "uploads"
-EXPORTS_DIR = BASE_DIR / "exports"
-UPLOADS_DIR.mkdir(exist_ok=True)
-EXPORTS_DIR.mkdir(exist_ok=True)
+UPLOADS_DIR = RUNTIME_ROOT / "uploads"
+EXPORTS_DIR = RUNTIME_ROOT / "exports"
+UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
+EXPORTS_DIR.mkdir(parents=True, exist_ok=True)
 
 create_tables()
 
@@ -1498,7 +1521,7 @@ async def listar_requisitos_documentales(proyecto_id: int, db: Session = Depends
             "estado": r.estado,
             "observaciones": r.observaciones or "",
             "fuente": r.fuente or "manual",
-            "carpeta_objetivo": str(_carpeta_requisito(r.proyecto_id, r.categoria, r.nombre).relative_to(BASE_DIR)),
+            "carpeta_objetivo": str(_carpeta_requisito(r.proyecto_id, r.categoria, r.nombre).relative_to(RUNTIME_ROOT)),
             "evidencias_count": conteo_evidencias.get(r.id, 0),
             "fecha_creacion": r.fecha_creacion.isoformat() if r.fecha_creacion else "",
             "fecha_actualizacion": r.fecha_actualizacion.isoformat() if r.fecha_actualizacion else "",
@@ -1576,7 +1599,7 @@ async def subir_evidencia_requisito(requisito_id: int, file: UploadFile = File(.
         nombre_archivo=nombre_limpio,
         extension=ext,
         archivo_path=str(destino),
-        carpeta_relativa=str(carpeta.relative_to(BASE_DIR)),
+        carpeta_relativa=str(carpeta.relative_to(RUNTIME_ROOT)),
         orden=siguiente_orden,
     )
     db.add(evidencia)
@@ -1673,7 +1696,7 @@ async def obtener_arbol_documentacion(proyecto_id: int, db: Session = Depends(ge
             "requisito": r.nombre,
             "categoria": r.categoria,
             "estado": r.estado,
-            "carpeta_objetivo": str(_carpeta_requisito(r.proyecto_id, r.categoria, r.nombre).relative_to(BASE_DIR)),
+            "carpeta_objetivo": str(_carpeta_requisito(r.proyecto_id, r.categoria, r.nombre).relative_to(RUNTIME_ROOT)),
             "evidencias": evidencias_por_req.get(r.id, []),
         })
 
@@ -1734,7 +1757,7 @@ async def exportar_indice_documental(proyecto_id: int, formato: str = "excel", d
             "requisito": r.nombre,
             "categoria": r.categoria,
             "estado": r.estado,
-            "carpeta_objetivo": str(_carpeta_requisito(r.proyecto_id, r.categoria, r.nombre).relative_to(BASE_DIR)),
+            "carpeta_objetivo": str(_carpeta_requisito(r.proyecto_id, r.categoria, r.nombre).relative_to(RUNTIME_ROOT)),
             "evidencias": evidencias_por_req.get(r.id, []),
         })
     secciones_ordenadas = [secciones[codigo] for codigo, _ in SECCIONES_DOCUMENTALES]
@@ -1744,9 +1767,9 @@ async def exportar_indice_documental(proyecto_id: int, formato: str = "excel", d
     fecha_generacion = datetime.now().strftime("%d/%m/%Y %H:%M")
     codigo_licitacion = (proyecto.codigo_licitacion or "").strip()
     logo_candidates = [
-        BASE_DIR / "templates" / "logo.png",
-        BASE_DIR / "templates" / "logo.jpg",
-        BASE_DIR / "templates" / "logo.jpeg",
+        REPO_ROOT / "templates" / "logo.png",
+        REPO_ROOT / "templates" / "logo.jpg",
+        REPO_ROOT / "templates" / "logo.jpeg",
     ]
     logo_path = ""
     for candidate in logo_candidates:
@@ -2161,7 +2184,7 @@ async def entrenar_modelo_atractividad_ml(req: TrainMLAtractividadRequest, db: S
     ML_ATRACTIVIDAD_MODEL_PATH.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
     return {
         "message": "Modelo ML entrenado",
-        "model_path": str(ML_ATRACTIVIDAD_MODEL_PATH.relative_to(BASE_DIR)),
+        "model_path": str(ML_ATRACTIVIDAD_MODEL_PATH.relative_to(RUNTIME_ROOT)),
         "metrics": {
             "train_size": trained["model"]["train_size"],
             "val_size": trained["model"]["val_size"],
