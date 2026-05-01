@@ -1773,6 +1773,11 @@ async function exportarIndiceDocumental(formato) {
     mostrarAlerta('alertDocumentacion','error','Selecciona un proyecto');
     return;
   }
+  const preflight = await obtenerPreflightProyecto(parseInt(proyectoId));
+  if(preflight && preflight.estado_final === 'no_apto') {
+    mostrarBloqueoPreflight(preflight, 'alertDocumentacion', formato === 'pdf' ? 'indice_documental_pdf' : 'indice_documental_excel');
+    return;
+  }
   showLoader(`📦 Exportando índice documental (${formato.toUpperCase()})...`);
   try {
     const res = await fetch(`${API}/api/proyectos/${proyectoId}/documentacion/exportar?formato=${encodeURIComponent(formato)}`, {
@@ -2835,6 +2840,11 @@ function activarRegeneracionPro(proyectoId, tipo) {
 }
 
 async function descargarConQAGate(documentoId, url, tipo, proyectoId) {
+  const preflight = await obtenerPreflightProyecto(proyectoId || obtenerProyectoActivoId());
+  if(preflight && preflight.estado_final === 'no_apto') {
+    mostrarBloqueoPreflight(preflight, 'alertGenerar', tipo || '');
+    return;
+  }
   const qa = await evaluarQADocumento(documentoId);
   if(!qa) return;
   if((qa.score_qa || 0) < QA_GATE_MIN_SCORE) {
@@ -2979,6 +2989,32 @@ async function evaluarReadinessProyectoActual() {
     hideLoader();
     mostrarAlerta('alertArea', 'error', e.message || 'No se pudo evaluar readiness.');
   }
+}
+
+async function obtenerPreflightProyecto(proyectoId) {
+  if(!proyectoId) return null;
+  try {
+    return await apiFetch(`/api/proyectos/${proyectoId}/preflight-entrega`, {}, { context: 'Preflight de entrega', timeoutMs: 12000 });
+  } catch (_) {
+    return null;
+  }
+}
+
+function mostrarBloqueoPreflight(preflight, contenedorId='alertGenerar', tipoDoc='') {
+  const acciones = (preflight?.plan_cierre || []).slice(0, 4).map(x => `• ${x}`).join('<br/>');
+  const brechas = (preflight?.brechas_criticas || []).slice(0, 4).map(x => `• ${x}`).join('<br/>');
+  const pid = obtenerProyectoActivoId();
+  const botonPro = (pid && tipoDoc)
+    ? `<button class="btn btn-primary btn-sm" onclick="activarRegeneracionPro(${pid}, '${tipoDoc}')">✨ Regenerar en modo PRO</button>`
+    : `<button class="btn btn-primary btn-sm" onclick="navegar('generar')">✨ Ir a regenerar documentos</button>`;
+  mostrarAlerta(
+    contenedorId,
+    'error',
+    `⛔ Entrega bloqueada por Preflight NO APTO (${preflight?.score_global || 0}/100).` +
+    `${brechas ? `<br/><br/><b>Brechas críticas:</b><br/>${brechas}` : ''}` +
+    `${acciones ? `<br/><br/><b>Plan de cierre:</b><br/>${acciones}` : ''}` +
+    `<br/><br/>${botonPro}`
+  );
 }
 
 async function ejecutarPreflightEntrega() {

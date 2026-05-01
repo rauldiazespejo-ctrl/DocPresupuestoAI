@@ -85,6 +85,14 @@ PREFLIGHT_REQUIRED_DOC_GROUPS = {
     "propuesta": ["propuesta_pdf"],
     "indice_documental": ["indice_documental_pdf", "indice_documental_excel"],
 }
+PREFLIGHT_BLOCKED_DOWNLOAD_TYPES = {
+    "presupuesto_pdf",
+    "presupuesto_excel",
+    "informe_pdf",
+    "propuesta_pdf",
+    "indice_documental_pdf",
+    "indice_documental_excel",
+}
 
 
 def _slugify(texto: str) -> str:
@@ -729,6 +737,19 @@ async def descargar_documento(documento_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Documento no encontrado")
     if not Path(doc.archivo_generado).exists():
         raise HTTPException(status_code=404, detail="Archivo no encontrado en disco")
+    if doc.tipo in PREFLIGHT_BLOCKED_DOWNLOAD_TYPES:
+        preflight = await ejecutar_preflight_entrega(doc.proyecto_id, db)
+        if preflight.get("estado_final") == "no_apto":
+            return JSONResponse(
+                status_code=409,
+                content={
+                    "message": "Descarga bloqueada por preflight NO APTO. Ejecuta plan de cierre.",
+                    "estado_final": preflight.get("estado_final"),
+                    "score_global": preflight.get("score_global"),
+                    "plan_cierre": preflight.get("plan_cierre", []),
+                    "brechas_criticas": preflight.get("brechas_criticas", []),
+                },
+            )
     
     return FileResponse(
         path=doc.archivo_generado,
@@ -1362,6 +1383,18 @@ async def exportar_indice_documental(proyecto_id: int, formato: str = "excel", d
     proyecto = db.query(Proyecto).filter(Proyecto.id == proyecto_id).first()
     if not proyecto:
         raise HTTPException(status_code=404, detail="Proyecto no encontrado")
+    preflight = await ejecutar_preflight_entrega(proyecto_id, db)
+    if preflight.get("estado_final") == "no_apto":
+        return JSONResponse(
+            status_code=409,
+            content={
+                "message": "Exportación bloqueada por preflight NO APTO. Ejecuta plan de cierre.",
+                "estado_final": preflight.get("estado_final"),
+                "score_global": preflight.get("score_global"),
+                "plan_cierre": preflight.get("plan_cierre", []),
+                "brechas_criticas": preflight.get("brechas_criticas", []),
+            },
+        )
 
     requisitos = (
         db.query(RequisitoDocumental)
