@@ -1,0 +1,2463 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>DocPresupuestoAI — Sistema Inteligente de Documentación</title>
+<style>
+/* ═══════════════════════════════════════════════════
+   VARIABLES Y RESET
+═══════════════════════════════════════════════════ */
+:root {
+  --azul: #1a3c5e;
+  --azul-m: #2e7d9b;
+  --azul-c: #4db6d8;
+  --dorado: #f5a623;
+  --verde: #27ae60;
+  --rojo: #e74c3c;
+  --gris: #f0f4f8;
+  --gris-m: #dde3ea;
+  --texto: #1a1a2e;
+  --blanco: #ffffff;
+  --sombra: 0 4px 20px rgba(26,60,94,0.13);
+  --radio: 12px;
+  --radio-s: 8px;
+  --trans: all 0.25s ease;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--gris);color:var(--texto);min-height:100vh;display:flex;flex-direction:column;}
+
+/* ═══════════════════════════════════════════════════
+   LAYOUT PRINCIPAL
+═══════════════════════════════════════════════════ */
+.app-wrapper{display:flex;min-height:100vh;}
+.sidebar{width:280px;background:var(--azul);color:var(--blanco);display:flex;flex-direction:column;position:fixed;top:0;left:0;height:100vh;z-index:100;overflow-y:auto;}
+.main-content{margin-left:280px;flex:1;display:flex;flex-direction:column;min-height:100vh;}
+
+/* ═══════════════════════════════════════════════════
+   SIDEBAR
+═══════════════════════════════════════════════════ */
+.sidebar-logo{padding:28px 24px 20px;border-bottom:1px solid rgba(255,255,255,0.1);}
+.sidebar-logo h1{font-size:1.3rem;font-weight:800;letter-spacing:-0.3px;}
+.sidebar-logo h1 span{color:var(--dorado);}
+.sidebar-logo p{font-size:0.72rem;color:rgba(255,255,255,0.55);margin-top:4px;}
+
+.sidebar-section{padding:20px 16px 8px;font-size:0.68rem;text-transform:uppercase;letter-spacing:1.5px;color:rgba(255,255,255,0.4);}
+.nav-item{display:flex;align-items:center;gap:12px;padding:11px 20px;cursor:pointer;border-radius:0;transition:var(--trans);font-size:0.9rem;color:rgba(255,255,255,0.8);border-left:3px solid transparent;text-decoration:none;}
+.nav-item:hover{background:rgba(255,255,255,0.08);color:var(--blanco);}
+.nav-item.active{background:rgba(77,182,216,0.2);color:var(--azul-c);border-left-color:var(--azul-c);}
+.nav-item .icon{font-size:1.1rem;width:20px;text-align:center;}
+
+.sidebar-projects{padding:8px 0;flex:1;overflow-y:auto;}
+.project-item{padding:10px 20px;cursor:pointer;border-left:3px solid transparent;transition:var(--trans);}
+.project-item:hover{background:rgba(255,255,255,0.06);border-left-color:rgba(255,255,255,0.2);}
+.project-item.active{background:rgba(245,166,35,0.15);border-left-color:var(--dorado);}
+.project-item .proj-name{font-size:0.87rem;font-weight:600;color:rgba(255,255,255,0.9);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.project-item .proj-meta{font-size:0.72rem;color:rgba(255,255,255,0.4);margin-top:2px;}
+
+.sidebar-bottom{padding:16px;border-top:1px solid rgba(255,255,255,0.1);}
+.status-dot{width:8px;height:8px;border-radius:50%;background:var(--verde);display:inline-block;margin-right:6px;animation:pulse 2s infinite;}
+@keyframes pulse{0%,100%{opacity:1;}50%{opacity:0.4;}}
+
+/* ═══════════════════════════════════════════════════
+   TOP BAR
+═══════════════════════════════════════════════════ */
+.topbar{background:var(--blanco);padding:16px 32px;display:flex;align-items:center;justify-content:space-between;box-shadow:0 2px 8px rgba(0,0,0,0.06);position:sticky;top:0;z-index:50;}
+.topbar-title{font-size:1.15rem;font-weight:700;color:var(--azul);}
+.topbar-actions{display:flex;gap:10px;}
+
+/* ═══════════════════════════════════════════════════
+   PÁGINAS
+═══════════════════════════════════════════════════ */
+.page{display:none;padding:28px 32px;flex:1;}
+.page.active{display:block;}
+
+/* ═══════════════════════════════════════════════════
+   CARDS
+═══════════════════════════════════════════════════ */
+.card{background:var(--blanco);border-radius:var(--radio);box-shadow:var(--sombra);padding:28px;margin-bottom:24px;}
+.card-header{display:flex;align-items:center;gap:12px;margin-bottom:20px;}
+.card-header .card-icon{width:42px;height:42px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:1.3rem;background:linear-gradient(135deg,var(--azul),var(--azul-m));}
+.card-header h2{font-size:1.1rem;font-weight:700;color:var(--azul);}
+.card-header p{font-size:0.8rem;color:#888;margin-top:2px;}
+
+/* ═══════════════════════════════════════════════════
+   ZONA DE CARGA
+═══════════════════════════════════════════════════ */
+.upload-zone{border:2.5px dashed var(--azul-m);border-radius:var(--radio);padding:48px 24px;text-align:center;cursor:pointer;transition:var(--trans);position:relative;background:rgba(46,125,155,0.03);}
+.upload-zone:hover,.upload-zone.dragover{border-color:var(--azul);background:rgba(26,60,94,0.06);}
+.upload-zone .upload-icon{font-size:3.5rem;margin-bottom:12px;}
+.upload-zone h3{font-size:1.1rem;color:var(--azul);font-weight:700;}
+.upload-zone p{font-size:0.85rem;color:#888;margin-top:6px;}
+.upload-zone input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;}
+.file-badges{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:14px;}
+.badge{padding:4px 12px;border-radius:20px;font-size:0.72rem;font-weight:600;background:var(--gris);color:var(--azul-m);border:1px solid var(--gris-m);}
+
+/* ═══════════════════════════════════════════════════
+   FORMULARIOS
+═══════════════════════════════════════════════════ */
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+.form-group{display:flex;flex-direction:column;gap:6px;}
+.form-group.full{grid-column:1/-1;}
+label{font-size:0.82rem;font-weight:600;color:var(--azul);}
+input,select,textarea{border:1.5px solid var(--gris-m);border-radius:var(--radio-s);padding:10px 14px;font-size:0.9rem;font-family:inherit;transition:var(--trans);background:var(--blanco);color:var(--texto);outline:none;}
+input:focus,select:focus,textarea:focus{border-color:var(--azul-m);box-shadow:0 0 0 3px rgba(46,125,155,0.12);}
+input[type=password]{letter-spacing:2px;}
+textarea{resize:vertical;min-height:80px;}
+.input-group{display:flex;gap:8px;}
+.input-group input{flex:1;}
+
+/* ═══════════════════════════════════════════════════
+   BOTONES
+═══════════════════════════════════════════════════ */
+.btn{display:inline-flex;align-items:center;gap:8px;padding:10px 20px;border-radius:var(--radio-s);font-size:0.88rem;font-weight:600;cursor:pointer;border:none;transition:var(--trans);text-decoration:none;font-family:inherit;}
+.btn-primary{background:linear-gradient(135deg,var(--azul),var(--azul-m));color:var(--blanco);}
+.btn-primary:hover{transform:translateY(-1px);box-shadow:0 6px 20px rgba(26,60,94,0.3);}
+.btn-secondary{background:var(--gris);color:var(--azul);border:1.5px solid var(--gris-m);}
+.btn-secondary:hover{background:var(--gris-m);}
+.btn-success{background:linear-gradient(135deg,#27ae60,#2ecc71);color:var(--blanco);}
+.btn-success:hover{transform:translateY(-1px);box-shadow:0 6px 20px rgba(39,174,96,0.3);}
+.btn-danger{background:linear-gradient(135deg,var(--rojo),#e57373);color:var(--blanco);}
+.btn-dorado{background:linear-gradient(135deg,var(--dorado),#f8c558);color:var(--azul);}
+.btn-sm{padding:7px 14px;font-size:0.8rem;}
+.btn-lg{padding:14px 28px;font-size:1rem;}
+.btn-icon{padding:8px;border-radius:var(--radio-s);}
+.btn:disabled{opacity:0.55;cursor:not-allowed;transform:none !important;}
+.btn-group{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px;}
+
+/* ═══════════════════════════════════════════════════
+   DOCUMENTOS GENERABLES
+═══════════════════════════════════════════════════ */
+.doc-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:16px;}
+.doc-card{background:var(--gris);border-radius:var(--radio);padding:20px;text-align:center;cursor:pointer;border:2px solid transparent;transition:var(--trans);}
+.doc-card:hover{border-color:var(--azul-m);background:rgba(46,125,155,0.05);}
+.doc-card.selected{border-color:var(--azul);background:rgba(26,60,94,0.07);}
+.doc-card .doc-icon{font-size:2.5rem;margin-bottom:10px;}
+.doc-card h3{font-size:0.9rem;font-weight:700;color:var(--azul);}
+.doc-card p{font-size:0.75rem;color:#888;margin-top:4px;}
+.doc-card .doc-tag{display:inline-block;margin-top:8px;padding:3px 10px;border-radius:20px;font-size:0.68rem;font-weight:700;}
+.tag-pdf{background:#ffe9e9;color:#c0392b;}
+.tag-excel{background:#e9f7e9;color:#27ae60;}
+.tag-word{background:#e9f0ff;color:#2980b9;}
+
+/* ═══════════════════════════════════════════════════
+   TABLA DE DATOS EXTRAÍDOS
+═══════════════════════════════════════════════════ */
+.datos-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+.dato-bloque{background:var(--gris);border-radius:var(--radio-s);padding:16px;}
+.dato-bloque h4{font-size:0.8rem;text-transform:uppercase;letter-spacing:1px;color:var(--azul-m);margin-bottom:12px;font-weight:700;}
+.dato-item{display:flex;justify-content:space-between;align-items:flex-start;padding:6px 0;border-bottom:1px solid var(--gris-m);gap:12px;}
+.dato-item:last-child{border-bottom:none;}
+.dato-key{font-size:0.8rem;color:#888;min-width:120px;}
+.dato-val{font-size:0.82rem;font-weight:600;color:var(--texto);text-align:right;}
+
+.tag-list{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px;}
+.tag{padding:3px 10px;border-radius:20px;font-size:0.73rem;background:var(--azul-m);color:var(--blanco);}
+
+/* ═══════════════════════════════════════════════════
+   TABLA PARTIDAS
+═══════════════════════════════════════════════════ */
+.table-wrapper{overflow-x:auto;border-radius:var(--radio-s);border:1px solid var(--gris-m);}
+table{width:100%;border-collapse:collapse;font-size:0.85rem;}
+thead{background:var(--azul);color:var(--blanco);}
+thead th{padding:12px 14px;text-align:left;font-weight:600;font-size:0.8rem;letter-spacing:0.3px;}
+tbody tr{transition:var(--trans);}
+tbody tr:nth-child(even){background:var(--gris);}
+tbody tr:hover{background:rgba(46,125,155,0.08);}
+tbody td{padding:10px 14px;border-bottom:1px solid var(--gris-m);vertical-align:top;}
+.td-num{text-align:right;font-family:monospace;}
+tfoot{background:linear-gradient(135deg,var(--azul),var(--azul-m));}
+tfoot td{padding:10px 14px;color:var(--blanco);font-weight:700;}
+
+/* ═══════════════════════════════════════════════════
+   CHAT
+═══════════════════════════════════════════════════ */
+.chat-wrapper{display:flex;flex-direction:column;height:500px;}
+.chat-messages{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:14px;background:var(--gris);border-radius:var(--radio-s);}
+.msg{max-width:80%;padding:12px 16px;border-radius:var(--radio);font-size:0.88rem;line-height:1.5;}
+.msg-user{align-self:flex-end;background:linear-gradient(135deg,var(--azul),var(--azul-m));color:var(--blanco);border-radius:var(--radio) var(--radio) 4px var(--radio);}
+.msg-ai{align-self:flex-start;background:var(--blanco);border:1px solid var(--gris-m);color:var(--texto);border-radius:var(--radio) var(--radio) var(--radio) 4px;box-shadow:var(--sombra);}
+.msg-typing{align-self:flex-start;background:var(--blanco);border:1px solid var(--gris-m);padding:12px 16px;border-radius:var(--radio);}
+.typing-dots{display:flex;gap:4px;}
+.typing-dots span{width:7px;height:7px;border-radius:50%;background:var(--azul-m);animation:bounce 1.4s infinite both;}
+.typing-dots span:nth-child(2){animation-delay:0.2s;}
+.typing-dots span:nth-child(3){animation-delay:0.4s;}
+@keyframes bounce{0%,80%,100%{transform:translateY(0);}40%{transform:translateY(-8px);}}
+.chat-input-area{display:flex;gap:10px;margin-top:12px;}
+.chat-input-area input{flex:1;}
+
+/* ═══════════════════════════════════════════════════
+   ALERTAS Y ESTADOS
+═══════════════════════════════════════════════════ */
+.alert{padding:14px 18px;border-radius:var(--radio-s);font-size:0.88rem;margin-bottom:16px;display:flex;align-items:flex-start;gap:10px;}
+.alert-success{background:#d5f4e6;border-left:4px solid var(--verde);color:#1a5c35;}
+.alert-error{background:#fde9e9;border-left:4px solid var(--rojo);color:#7d1111;}
+.alert-info{background:#e8f4fd;border-left:4px solid var(--azul-m);color:#1a3c5e;}
+.alert-warning{background:#fef9e7;border-left:4px solid var(--dorado);color:#7d5c00;}
+
+.progress-bar{height:6px;background:var(--gris-m);border-radius:3px;overflow:hidden;margin-top:10px;}
+.progress-fill{height:100%;background:linear-gradient(90deg,var(--azul-m),var(--azul-c));border-radius:3px;transition:width 0.4s ease;width:0%;}
+
+/* ═══════════════════════════════════════════════════
+   ESTADÍSTICAS DASHBOARD
+═══════════════════════════════════════════════════ */
+.stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:24px;}
+.stat-card{background:var(--blanco);border-radius:var(--radio);padding:20px;box-shadow:var(--sombra);display:flex;align-items:center;gap:16px;}
+.stat-icon{width:48px;height:48px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:1.4rem;}
+.stat-icon.azul{background:rgba(26,60,94,0.1);}
+.stat-icon.verde{background:rgba(39,174,96,0.1);}
+.stat-icon.dorado{background:rgba(245,166,35,0.1);}
+.stat-icon.cyan{background:rgba(77,182,216,0.1);}
+.stat-val{font-size:1.8rem;font-weight:800;color:var(--azul);}
+.stat-label{font-size:0.75rem;color:#888;margin-top:2px;}
+
+/* ═══════════════════════════════════════════════════
+   LISTA PROYECTOS EN DASHBOARD
+═══════════════════════════════════════════════════ */
+.proj-list{display:flex;flex-direction:column;gap:12px;}
+.proj-row{display:flex;align-items:center;gap:16px;padding:14px 18px;background:var(--gris);border-radius:var(--radio-s);cursor:pointer;transition:var(--trans);border:1.5px solid transparent;}
+.proj-row:hover{border-color:var(--azul-m);background:rgba(46,125,155,0.05);}
+.proj-row .pname{font-weight:700;color:var(--azul);font-size:0.95rem;}
+.proj-row .pmeta{font-size:0.78rem;color:#888;margin-top:3px;}
+.proj-row .pstatus{padding:4px 12px;border-radius:20px;font-size:0.72rem;font-weight:700;}
+.pstatus.activo{background:#d5f4e6;color:#1a5c35;}
+.proj-row .pactions{margin-left:auto;display:flex;gap:8px;}
+
+/* ═══════════════════════════════════════════════════
+   MODAL
+═══════════════════════════════════════════════════ */
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:200;align-items:center;justify-content:center;}
+.modal-overlay.show{display:flex;}
+.modal{background:var(--blanco);border-radius:var(--radio);padding:32px;width:90%;max-width:520px;box-shadow:0 20px 60px rgba(0,0,0,0.2);}
+.modal h3{font-size:1.15rem;color:var(--azul);margin-bottom:6px;}
+.modal p{font-size:0.85rem;color:#888;margin-bottom:20px;}
+
+/* ═══════════════════════════════════════════════════
+   LOADER OVERLAY
+═══════════════════════════════════════════════════ */
+.loader-overlay{display:none;position:fixed;inset:0;background:rgba(255,255,255,0.85);z-index:300;align-items:center;justify-content:center;flex-direction:column;gap:16px;}
+.loader-overlay.show{display:flex;}
+.spinner{width:52px;height:52px;border:5px solid var(--gris-m);border-top-color:var(--azul);border-radius:50%;animation:spin 0.8s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg);}}
+.loader-text{color:var(--azul);font-weight:600;font-size:1rem;}
+
+/* ═══════════════════════════════════════════════════
+   TABS
+═══════════════════════════════════════════════════ */
+.tabs{display:flex;gap:0;border-bottom:2px solid var(--gris-m);margin-bottom:24px;}
+.tab{padding:10px 20px;cursor:pointer;font-size:0.88rem;font-weight:600;color:#888;border-bottom:2px solid transparent;margin-bottom:-2px;transition:var(--trans);}
+.tab:hover{color:var(--azul-m);}
+.tab.active{color:var(--azul);border-bottom-color:var(--azul);}
+
+/* ═══════════════════════════════════════════════════
+   RESPONSIVE
+═══════════════════════════════════════════════════ */
+@media(max-width:900px){
+  .sidebar{width:70px;overflow:hidden;}
+  .sidebar-logo h1,.sidebar-logo p,.nav-item span,.sidebar-section,.project-item .proj-name,.project-item .proj-meta{display:none;}
+  .nav-item{padding:14px;justify-content:center;}
+  .main-content{margin-left:70px;}
+  .stats-grid{grid-template-columns:1fr 1fr;}
+  .form-grid,.datos-grid{grid-template-columns:1fr;}
+}
+@media(max-width:600px){
+  .stats-grid{grid-template-columns:1fr;}
+  .page{padding:16px;}
+  .topbar{padding:12px 16px;}
+}
+
+/* ═══════════════════════════════════════════════════
+   MISC
+═══════════════════════════════════════════════════ */
+.divider{height:1px;background:var(--gris-m);margin:20px 0;}
+.text-muted{color:#888;font-size:0.85rem;}
+.text-center{text-align:center;}
+.mt-4{margin-top:16px;}
+.mb-4{margin-bottom:16px;}
+.flex{display:flex;align-items:center;}
+.gap-2{gap:8px;}
+.hidden{display:none !important;}
+.highlight{color:var(--azul);font-weight:700;}
+.monospace{font-family:monospace;}
+
+/* Scrollbar */
+::-webkit-scrollbar{width:6px;height:6px;}
+::-webkit-scrollbar-track{background:transparent;}
+::-webkit-scrollbar-thumb{background:var(--gris-m);border-radius:3px;}
+::-webkit-scrollbar-thumb:hover{background:#bbb;}
+
+/* Animación de entrada */
+@keyframes fadeIn{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:translateY(0);}}
+.card,.stat-card{animation:fadeIn 0.3s ease both;}
+</style>
+</head>
+<body>
+
+<!-- LOADER -->
+<div class="loader-overlay" id="loaderOverlay">
+  <div class="spinner"></div>
+  <div class="loader-text" id="loaderText">Procesando...</div>
+  <div class="progress-bar" style="width:280px"><div class="progress-fill" id="progressFill"></div></div>
+</div>
+
+<!-- MODAL CONFIGURACIÓN IA -->
+<div class="modal-overlay" id="modalConfig">
+  <div class="modal">
+    <h3>⚙️ Configuración de IA</h3>
+    <p>Conecta tu proveedor de IA preferido para generar documentos inteligentes.</p>
+    <div class="form-grid">
+      <div class="form-group">
+        <label>Proveedor</label>
+        <select id="cfgProvider" onchange="actualizarModelosPorProveedor()">
+          <option value="openai">🤖 OpenAI (GPT)</option>
+          <option value="anthropic">🧠 Anthropic (Claude)</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Modelo</label>
+        <select id="cfgModel">
+          <option value="gpt-4o">GPT-4o (Recomendado)</option>
+          <option value="gpt-4o-mini">GPT-4o Mini (Rápido)</option>
+          <option value="gpt-4-turbo">GPT-4 Turbo</option>
+        </select>
+      </div>
+      <div class="form-group full">
+        <label>API Key</label>
+        <input type="password" id="cfgApiKey" placeholder="sk-..." autocomplete="off"/>
+      </div>
+    </div>
+    <div class="btn-group mt-4">
+      <button class="btn btn-primary" onclick="guardarConfigIA()">✅ Guardar configuración</button>
+      <button class="btn btn-secondary" onclick="cerrarModal('modalConfig')">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<!-- APP WRAPPER -->
+<div class="app-wrapper">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <h1>Doc<span>Presupuesto</span>AI</h1>
+      <p>Sistema Inteligente v1.0</p>
+    </div>
+    
+    <div class="sidebar-section">Navegación</div>
+    <a class="nav-item active" onclick="navegar('dashboard')" href="#">
+      <span class="icon">📊</span><span>Dashboard</span>
+    </a>
+    <a class="nav-item" onclick="navegar('nuevo')" href="#">
+      <span class="icon">➕</span><span>Nuevo Proyecto</span>
+    </a>
+    <a class="nav-item" onclick="navegar('generar')" href="#">
+      <span class="icon">📄</span><span>Generar Documentos</span>
+    </a>
+    <a class="nav-item" onclick="navegar('documentacion')" href="#">
+      <span class="icon">🗂️</span><span>Documentación Requerida</span>
+    </a>
+    <a class="nav-item" onclick="navegar('prediccion')" href="#">
+      <span class="icon">🎯</span><span>Predicción Adjudicación</span>
+    </a>
+    <a class="nav-item" onclick="navegar('chat')" href="#">
+      <span class="icon">💬</span><span>Consultar IA</span>
+    </a>
+    
+    <div class="sidebar-section">Proyectos Recientes</div>
+    <div class="sidebar-projects" id="sidebarProjects">
+      <div class="text-muted" style="padding:12px 20px;font-size:0.78rem;">Sin proyectos</div>
+    </div>
+    
+    <div class="sidebar-bottom">
+      <div style="display:flex;align-items:center;font-size:0.78rem;color:rgba(255,255,255,0.6);">
+        <span class="status-dot"></span>
+        <span id="sidebarIAStatus">IA: No configurada</span>
+      </div>
+      <button class="btn btn-secondary btn-sm" style="margin-top:10px;width:100%" onclick="abrirModal('modalConfig')">⚙️ Configurar IA</button>
+    </div>
+  </aside>
+
+  <!-- CONTENIDO PRINCIPAL -->
+  <main class="main-content">
+    
+    <!-- TOP BAR -->
+    <div class="topbar">
+      <div class="topbar-title" id="topbarTitle">📊 Dashboard</div>
+      <div class="topbar-actions">
+        <button class="btn btn-secondary btn-sm" onclick="abrirModal('modalConfig')">⚙️ Configurar IA</button>
+        <button class="btn btn-primary btn-sm" onclick="navegar('nuevo')">➕ Nuevo Proyecto</button>
+      </div>
+    </div>
+
+    <!-- ══ DASHBOARD ══════════════════════════════════════════════════════════ -->
+    <div class="page active" id="page-dashboard">
+      <div id="alertArea"></div>
+      
+      <!-- Stats -->
+      <div class="stats-grid" id="statsGrid">
+        <div class="stat-card">
+          <div class="stat-icon azul">📁</div>
+          <div><div class="stat-val" id="statProyectos">0</div><div class="stat-label">Proyectos</div></div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon verde">📄</div>
+          <div><div class="stat-val" id="statDocumentos">0</div><div class="stat-label">Documentos Generados</div></div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon dorado">💰</div>
+          <div><div class="stat-val" id="statPresupuestos">0</div><div class="stat-label">Presupuestos</div></div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon cyan">🤖</div>
+          <div><div class="stat-val" id="statIA">—</div><div class="stat-label">IA Activa</div></div>
+        </div>
+      </div>
+
+      <!-- Lista proyectos -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-icon">📁</div>
+          <div><h2>Proyectos</h2><p>Gestiona todos tus proyectos</p></div>
+        </div>
+        <div class="proj-list" id="dashboardProjects">
+          <div class="text-center text-muted" style="padding:40px">
+            <div style="font-size:3rem;margin-bottom:12px">📂</div>
+            <div style="font-size:1rem;font-weight:600;color:var(--azul)">Sin proyectos aún</div>
+            <div style="margin-top:8px">Crea tu primer proyecto subiendo las bases técnicas</div>
+            <button class="btn btn-primary mt-4" onclick="navegar('nuevo')">➕ Crear Primer Proyecto</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ NUEVO PROYECTO ══════════════════════════════════════════════════════ -->
+    <div class="page" id="page-nuevo">
+      <div class="card">
+        <div class="card-header">
+          <div class="card-icon">📤</div>
+          <div><h2>Nuevo Proyecto</h2><p>Sube las bases técnicas y/o administrativas del proyecto</p></div>
+        </div>
+        
+        <div id="alertNuevo"></div>
+        
+        <!-- Zona de carga -->
+        <div class="upload-zone" id="uploadZone" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event)">
+          <input type="file" id="fileInput" accept=".pdf,.docx,.doc,.xlsx,.xls,.txt" onchange="handleFileSelect(event)"/>
+          <div class="upload-icon">📎</div>
+          <h3>Arrastra el documento aquí</h3>
+          <p>o haz clic para seleccionar el archivo</p>
+          <div class="file-badges">
+            <span class="badge">PDF</span>
+            <span class="badge">DOCX</span>
+            <span class="badge">XLSX</span>
+            <span class="badge">TXT</span>
+          </div>
+        </div>
+        <div id="fileSelectedInfo" class="hidden" style="margin-top:12px;padding:12px;background:var(--gris);border-radius:var(--radio-s);display:flex;align-items:center;gap:10px;">
+          <span style="font-size:1.5rem">📄</span>
+          <div><div id="fileName" style="font-weight:600;font-size:0.9rem;color:var(--azul)"></div><div id="fileSize" style="font-size:0.75rem;color:#888"></div></div>
+          <button class="btn btn-danger btn-sm btn-icon" onclick="clearFile()" style="margin-left:auto">✕</button>
+        </div>
+        
+        <div class="divider"></div>
+        
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Nombre del Proyecto *</label>
+            <input type="text" id="inputNombreProyecto" placeholder="Ej: Construcción Edificio Central"/>
+          </div>
+          <div class="form-group">
+            <label>Código OT / Licitación *</label>
+            <input type="text" id="inputCodigoLicitacion" placeholder="Ej: OT_25086007_POLPAICO"/>
+          </div>
+          <div class="form-group">
+            <label>Cliente / Mandante</label>
+            <input type="text" id="inputCliente" placeholder="Nombre del cliente"/>
+          </div>
+        </div>
+        
+        <div class="btn-group mt-4">
+          <button class="btn btn-primary btn-lg" onclick="subirDocumento()">🚀 Analizar con IA</button>
+          <button class="btn btn-secondary" onclick="navegar('dashboard')">← Volver</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ GENERAR DOCUMENTOS ══════════════════════════════════════════════════ -->
+    <div class="page" id="page-generar">
+      <div class="card">
+        <div class="card-header">
+          <div class="card-icon">📄</div>
+          <div><h2>Generar Documentos</h2><p>Genera presupuestos, informes y propuestas técnicas con IA</p></div>
+        </div>
+        
+        <div id="alertGenerar"></div>
+        
+        <!-- Selector de proyecto -->
+        <div class="form-group mb-4">
+          <label>Proyecto *</label>
+          <select id="selectProyectoGenerar" onchange="cargarDatosProyectoGenerar()">
+            <option value="">— Selecciona un proyecto —</option>
+          </select>
+        </div>
+
+        <!-- Panel de datos extraídos -->
+        <div id="panelDatosExtraidos" class="hidden">
+          <div class="tabs">
+            <div class="tab active" onclick="cambiarTab(event,'tabDatos')">📋 Datos Extraídos</div>
+            <div class="tab" onclick="cambiarTab(event,'tabPartidas')">💰 Partidas</div>
+            <div class="tab" onclick="cambiarTab(event,'tabGenerados')">📂 Generados</div>
+          </div>
+          
+          <!-- Tab Datos -->
+          <div id="tabDatos" class="tab-content">
+            <div class="datos-grid" id="datosExtraidosGrid"></div>
+          </div>
+          
+          <!-- Tab Partidas -->
+          <div id="tabPartidas" class="tab-content hidden">
+            <div class="table-wrapper">
+              <table id="tablaPartidas">
+                <thead><tr><th>N°</th><th>Descripción</th><th>Unidad</th><th>Cantidad</th><th>P. Unitario</th></tr></thead>
+                <tbody id="tablaPartidasBody"></tbody>
+              </table>
+            </div>
+          </div>
+          
+          <!-- Tab Generados -->
+          <div id="tabGenerados" class="tab-content hidden">
+            <div id="listaDocumentosGenerados"></div>
+          </div>
+        </div>
+        
+        <div class="divider"></div>
+        
+        <!-- Tipos de documento -->
+        <h3 style="color:var(--azul);margin-bottom:14px;font-size:0.95rem">Selecciona el tipo de documento a generar:</h3>
+        <div class="doc-grid">
+          <div class="doc-card" onclick="seleccionarDocTipo('presupuesto_pdf',this)">
+            <div class="doc-icon">📊</div>
+            <h3>Presupuesto PDF</h3>
+            <p>Presupuesto completo con partidas, valores y resumen financiero</p>
+            <span class="doc-tag tag-pdf">PDF</span>
+          </div>
+          <div class="doc-card" onclick="seleccionarDocTipo('presupuesto_excel',this)">
+            <div class="doc-icon">📈</div>
+            <h3>Presupuesto Excel</h3>
+            <p>Planilla editable con cálculos automáticos y formatos</p>
+            <span class="doc-tag tag-excel">EXCEL</span>
+          </div>
+          <div class="doc-card" onclick="seleccionarDocTipo('informe_pdf',this)">
+            <div class="doc-icon">📋</div>
+            <h3>Informe Técnico</h3>
+            <p>Informe completo con metodología, alcance y programa de trabajo</p>
+            <span class="doc-tag tag-pdf">PDF</span>
+          </div>
+          <div class="doc-card" onclick="seleccionarDocTipo('propuesta_pdf',this)">
+            <div class="doc-icon">🏆</div>
+            <h3>Propuesta Técnica</h3>
+            <p>Propuesta ganadora para licitaciones con todos los requisitos</p>
+            <span class="doc-tag tag-pdf">PDF</span>
+          </div>
+        </div>
+        
+        <div id="tipoSeleccionado" class="hidden" style="margin-top:16px;padding:12px;background:rgba(39,174,96,0.08);border-radius:var(--radio-s);border-left:4px solid var(--verde);">
+          <span style="font-size:0.85rem;font-weight:600;color:#1a5c35">✅ Documento seleccionado: <span id="textoTipoSeleccionado"></span></span>
+        </div>
+        
+        <div class="btn-group mt-4">
+          <button class="btn btn-success btn-lg" onclick="generarDocumento()" id="btnGenerar">⚡ Generar con IA</button>
+          <button class="btn btn-secondary" onclick="navegar('dashboard')">← Volver</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ DOCUMENTACION REQUERIDA ═════════════════════════════════════════════ -->
+    <div class="page" id="page-documentacion">
+      <div class="card">
+        <div class="card-header">
+          <div class="card-icon">🗂️</div>
+          <div><h2>Documentación Requerida</h2><p>Matriz de cumplimiento técnico y administrativo por proyecto</p></div>
+        </div>
+
+        <div id="alertDocumentacion"></div>
+
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Proyecto *</label>
+            <select id="selectProyectoDocumentacion" onchange="cargarRequisitosProyecto()">
+              <option value="">— Selecciona un proyecto —</option>
+            </select>
+          </div>
+          <div class="form-group" style="display:flex;align-items:flex-end;">
+            <button class="btn btn-primary" onclick="sincronizarRequisitosIA()">🔄 Sincronizar desde datos IA</button>
+          </div>
+        </div>
+        <div class="btn-group" style="margin-top:10px;">
+          <button class="btn btn-secondary btn-sm" onclick="exportarIndiceDocumental('excel')">⬇️ Exportar índice Excel</button>
+          <button class="btn btn-secondary btn-sm" onclick="exportarIndiceDocumental('pdf')">⬇️ Exportar índice PDF</button>
+        </div>
+
+        <div class="divider"></div>
+
+        <h3 style="color:var(--azul);margin-bottom:14px;font-size:0.95rem">Agregar requisito manual</h3>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Nombre requisito</label>
+            <input type="text" id="inputReqNombre" placeholder="Ej: Certificado de antecedentes laborales"/>
+          </div>
+          <div class="form-group">
+            <label>Categoría</label>
+            <select id="inputReqCategoria">
+              <option value="administrativo">Administrativo</option>
+              <option value="tecnico">Técnico</option>
+              <option value="legal">Legal</option>
+              <option value="hse">HSE</option>
+            </select>
+          </div>
+          <div class="form-group full">
+            <label>Observaciones</label>
+            <input type="text" id="inputReqObs" placeholder="Opcional"/>
+          </div>
+        </div>
+        <div class="btn-group mt-4">
+          <button class="btn btn-success" onclick="crearRequisitoManual()">➕ Agregar requisito</button>
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="table-wrapper">
+          <table>
+            <thead>
+              <tr><th>Requisito</th><th>Categoría</th><th>Estado</th><th>Observaciones</th><th>Carpeta</th><th>Evidencias</th><th>Acciones</th></tr>
+            </thead>
+            <tbody id="tablaRequisitosBody">
+              <tr><td colspan="7" class="text-center text-muted" style="padding:16px;">Selecciona un proyecto para ver requisitos</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="divider"></div>
+        <h3 style="color:var(--azul);margin-bottom:14px;font-size:0.95rem">Explorador por estructura de carpetas</h3>
+        <div id="arbolDocumentacion" class="dato-bloque">
+          <div class="text-muted">Selecciona un proyecto para visualizar el árbol documental.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ PREDICCION ADJUDICACION ═════════════════════════════════════════════ -->
+    <div class="page" id="page-prediccion">
+      <div class="card">
+        <div class="card-header">
+          <div class="card-icon">🎯</div>
+          <div><h2>Predicción de Adjudicación</h2><p>Registra ofertas, calcula probabilidad de adjudicación y analiza factores clave</p></div>
+        </div>
+
+        <div id="alertPrediccion"></div>
+
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Proyecto *</label>
+            <select id="selectProyectoPrediccion" onchange="cargarDatosPrediccion()">
+              <option value="">— Selecciona un proyecto —</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Oferta registrada *</label>
+            <select id="selectOfertaPrediccion">
+              <option value="">— Selecciona una oferta —</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="divider"></div>
+        <h3 style="color:var(--azul);margin-bottom:10px;font-size:0.95rem">Bid Leveling (comparación de ofertas)</h3>
+        <div class="form-grid">
+          <div class="form-group full">
+            <label>Selecciona 2 o más ofertas para comparar</label>
+            <select id="selectOfertasLeveling" multiple size="5"></select>
+          </div>
+        </div>
+        <div class="btn-group">
+          <button class="btn btn-dorado" onclick="ejecutarBidLeveling()">⚖️ Ejecutar bid leveling</button>
+        </div>
+        <div id="resultadoBidLeveling" class="hidden" style="margin-top:12px;"></div>
+
+        <div class="divider"></div>
+        <h3 style="color:var(--azul);margin-bottom:10px;font-size:0.95rem">Atractividad de Licitación (histórico 3 años)</h3>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Cliente histórico *</label>
+            <input type="text" id="histCliente" placeholder="Ej: POLPAICO"/>
+          </div>
+          <div class="form-group">
+            <label>Código licitación</label>
+            <input type="text" id="histCodigo" placeholder="OT_25086007_POLPAICO"/>
+          </div>
+          <div class="form-group">
+            <label>Rubro</label>
+            <input type="text" id="histRubro" placeholder="Mantenimiento industrial"/>
+          </div>
+          <div class="form-group">
+            <label>Monto ofertado</label>
+            <input type="number" id="histMonto" min="0" step="0.01"/>
+          </div>
+          <div class="form-group">
+            <label>Margen %</label>
+            <input type="number" id="histMargen" step="0.01"/>
+          </div>
+          <div class="form-group">
+            <label>Fecha cierre (ISO)</label>
+            <input type="text" id="histFecha" placeholder="2025-05-31T00:00:00"/>
+          </div>
+          <div class="form-group">
+            <label>Resultado</label>
+            <select id="histAdjudicada">
+              <option value="true">Adjudicada</option>
+              <option value="false">No adjudicada</option>
+            </select>
+          </div>
+          <div class="form-group full">
+            <label>Observaciones</label>
+            <input type="text" id="histObs" placeholder="Opcional"/>
+          </div>
+        </div>
+        <div class="btn-group">
+          <button class="btn btn-primary btn-sm" onclick="registrarHistoricoLicitacion()">💾 Agregar histórico</button>
+          <button class="btn btn-secondary btn-sm" onclick="cargarHistoricoLicitaciones()">🔄 Actualizar histórico</button>
+          <button class="btn btn-dorado btn-sm" onclick="evaluarAtractividadLicitacion()">🧠 Evaluar atractividad Go/No-Go</button>
+        </div>
+        <div class="btn-group" style="margin-top:8px;">
+          <button class="btn btn-secondary btn-sm" onclick="entrenarModeloMLAtractividad()">🧪 Entrenar ML v2</button>
+          <button class="btn btn-secondary btn-sm" onclick="consultarEstadoModeloML()">📈 Estado ML</button>
+          <button class="btn btn-success btn-sm" onclick="evaluarAtractividadMLV2()">🤖 Evaluar con ML v2</button>
+        </div>
+        <div class="btn-group" style="margin-top:8px;">
+          <input type="file" id="fileHistoricoMasivo" accept=".csv,.xlsx" style="max-width:260px;"/>
+          <button class="btn btn-primary btn-sm" onclick="importarHistoricoMasivo()">📥 Importar histórico masivo (CSV/XLSX)</button>
+          <button class="btn btn-secondary btn-sm" onclick="descargarPlantillaHistorico()">⬇️ Descargar plantilla</button>
+        </div>
+        <div id="resultadoAtractividad" class="hidden" style="margin-top:12px;"></div>
+        <div id="resultadoAtractividadML" class="hidden" style="margin-top:12px;"></div>
+        <div class="table-wrapper" style="margin-top:10px;">
+          <table>
+            <thead>
+              <tr><th>Código</th><th>Cliente</th><th>Rubro</th><th>Monto</th><th>Margen%</th><th>Resultado</th><th>Fecha cierre</th></tr>
+            </thead>
+            <tbody id="tablaHistoricoBody">
+              <tr><td colspan="7" class="text-center text-muted" style="padding:14px;">Sin histórico cargado</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="divider"></div>
+
+        <h3 style="color:var(--azul);margin-bottom:14px;font-size:0.95rem">Registrar nueva oferta</h3>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Nombre de oferta *</label>
+            <input type="text" id="inputOfertaNombre" placeholder="Ej: Oferta Base Rev A"/>
+          </div>
+          <div class="form-group">
+            <label>Monto oferta</label>
+            <input type="number" id="inputOfertaMonto" placeholder="0" min="0" step="0.01"/>
+          </div>
+          <div class="form-group">
+            <label>Plazo (días)</label>
+            <input type="number" id="inputOfertaPlazo" placeholder="0" min="0" step="1"/>
+          </div>
+          <div class="form-group full">
+            <label>Notas</label>
+            <textarea id="inputOfertaNotas" placeholder="Observaciones internas de la oferta"></textarea>
+          </div>
+        </div>
+
+        <h3 style="color:var(--azul);margin:18px 0 12px;font-size:0.95rem">Factores de evaluación (0 - 100)</h3>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Cumplimiento requisitos</label>
+            <input type="number" id="factorCumplimiento" min="0" max="100" value="70"/>
+          </div>
+          <div class="form-group">
+            <label>Competitividad precio</label>
+            <input type="number" id="factorPrecio" min="0" max="100" value="70"/>
+          </div>
+          <div class="form-group">
+            <label>Solidez técnica</label>
+            <input type="number" id="factorTecnica" min="0" max="100" value="70"/>
+          </div>
+          <div class="form-group">
+            <label>Solidez HSE</label>
+            <input type="number" id="factorHse" min="0" max="100" value="70"/>
+          </div>
+          <div class="form-group">
+            <label>Riesgo contractual (alto=peor)</label>
+            <input type="number" id="factorRiesgo" min="0" max="100" value="40"/>
+          </div>
+        </div>
+
+        <div class="btn-group mt-4">
+          <button class="btn btn-primary" onclick="registrarOfertaPrediccion()">💾 Registrar oferta</button>
+          <button class="btn btn-success" onclick="calcularPrediccionOferta()">⚡ Calcular predicción</button>
+        </div>
+
+        <div class="divider"></div>
+
+        <h3 style="color:var(--azul);margin-bottom:14px;font-size:0.95rem">Simulador de escenarios (Top 3)</h3>
+        <div class="form-grid" style="margin-bottom:12px;">
+          <div class="form-group">
+            <label>Nombre Escenario 1</label>
+            <input type="text" id="nombreEscenario1" value="Escenario 1" oninput="actualizarNombreEscenario(1)"/>
+          </div>
+          <div class="form-group">
+            <label>Nombre Escenario 2</label>
+            <input type="text" id="nombreEscenario2" value="Escenario 2" oninput="actualizarNombreEscenario(2)"/>
+          </div>
+          <div class="form-group">
+            <label>Nombre Escenario 3</label>
+            <input type="text" id="nombreEscenario3" value="Escenario 3" oninput="actualizarNombreEscenario(3)"/>
+          </div>
+        </div>
+        <div class="btn-group" style="margin-bottom:12px;">
+          <button class="btn btn-secondary btn-sm" onclick="cargarEscenarioDesdeFormulario(1)">Usar factores actuales en Escenario 1</button>
+          <button class="btn btn-secondary btn-sm" onclick="cargarEscenarioDesdeFormulario(2)">Usar factores actuales en Escenario 2</button>
+          <button class="btn btn-secondary btn-sm" onclick="cargarEscenarioDesdeFormulario(3)">Usar factores actuales en Escenario 3</button>
+          <button class="btn btn-secondary btn-sm" onclick="duplicarEscenario(1,2)">Duplicar 1 → 2</button>
+          <button class="btn btn-secondary btn-sm" onclick="duplicarEscenario(2,3)">Duplicar 2 → 3</button>
+          <button class="btn btn-danger btn-sm" onclick="resetEscenarios()">Reset escenarios</button>
+          <button class="btn btn-dorado btn-sm" onclick="simularEscenarios()">🧪 Simular y comparar</button>
+        </div>
+        <div class="table-wrapper">
+          <table>
+            <thead>
+              <tr><th>Escenario</th><th>Score</th><th>Probabilidad</th><th>Mejoras sugeridas</th></tr>
+            </thead>
+            <tbody id="tablaSimulacionBody">
+              <tr><td colspan="4" class="text-center text-muted" style="padding:14px;">Sin simulaciones todavía</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="divider"></div>
+
+        <div id="resultadoPrediccion" class="hidden" style="padding:16px;background:var(--gris);border-radius:var(--radio-s);margin-bottom:16px;"></div>
+        <div id="historialPredicciones"></div>
+      </div>
+    </div>
+
+    <!-- ══ CHAT IA ══════════════════════════════════════════════════════════════ -->
+    <div class="page" id="page-chat">
+      <div class="card">
+        <div class="card-header">
+          <div class="card-icon">💬</div>
+          <div><h2>Consultar IA sobre el Proyecto</h2><p>Haz preguntas sobre las bases, presupuesto o alcance</p></div>
+        </div>
+        
+        <div class="form-group mb-4">
+          <label>Proyecto</label>
+          <select id="selectProyectoChat" onchange="actualizarProyectoChat()">
+            <option value="">— Selecciona un proyecto —</option>
+          </select>
+        </div>
+        
+        <div class="chat-wrapper">
+          <div class="chat-messages" id="chatMessages">
+            <div class="msg msg-ai">
+              👋 ¡Hola! Soy tu asistente de DocPresupuestoAI. Selecciona un proyecto y hazme preguntas sobre las bases técnicas, el presupuesto o cualquier aspecto del proyecto.
+            </div>
+          </div>
+          <div class="chat-input-area">
+            <input type="text" id="chatInput" placeholder="Escribe tu consulta..." onkeydown="if(event.key==='Enter')enviarConsulta()"/>
+            <button class="btn btn-primary" onclick="enviarConsulta()">Enviar ➤</button>
+          </div>
+        </div>
+        
+        <!-- Preguntas sugeridas -->
+        <div style="margin-top:14px;">
+          <div style="font-size:0.78rem;color:#888;margin-bottom:8px;font-weight:600">💡 Preguntas sugeridas:</div>
+          <div style="display:flex;flex-wrap:wrap;gap:8px;">
+            <button class="btn btn-secondary btn-sm" onclick="usarSugerencia('¿Cuáles son los principales requisitos técnicos?')">Requisitos técnicos</button>
+            <button class="btn btn-secondary btn-sm" onclick="usarSugerencia('¿Cuál es el plazo de ejecución del proyecto?')">Plazo de ejecución</button>
+            <button class="btn btn-secondary btn-sm" onclick="usarSugerencia('¿Qué documentos debo presentar?')">Documentos requeridos</button>
+            <button class="btn btn-secondary btn-sm" onclick="usarSugerencia('¿Cuáles son los criterios de evaluación?')">Criterios evaluación</button>
+            <button class="btn btn-secondary btn-sm" onclick="usarSugerencia('¿Cuánto debería presupuestar para este proyecto?')">Estimación presupuesto</button>
+            <button class="btn btn-secondary btn-sm" onclick="usarSugerencia('¿Cuáles son las penalidades y garantías?')">Penalidades y garantías</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<script>
+/* ═══════════════════════════════════════════════════════════════════════════
+   ESTADO GLOBAL
+═══════════════════════════════════════════════════════════════════════════ */
+const API = 'http://localhost:8000';
+let estado = {
+  proyectos: [],
+  proyectoActual: null,
+  configIA: JSON.parse(localStorage.getItem('docpresupuesto_ia') || 'null'),
+  tipoDocSeleccionado: null,
+  escenariosSimulacion: [
+    { nombre: 'Escenario 1', factores: {} },
+    { nombre: 'Escenario 2', factores: {} },
+    { nombre: 'Escenario 3', factores: {} }
+  ],
+};
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   NAVEGACIÓN
+═══════════════════════════════════════════════════════════════════════════ */
+const titulos = {
+  dashboard:'📊 Dashboard', nuevo:'➕ Nuevo Proyecto',
+  generar:'📄 Generar Documentos', documentacion:'🗂️ Documentación Requerida', prediccion:'🎯 Predicción Adjudicación', chat:'💬 Consultar IA'
+};
+function navegar(pagina) {
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  document.getElementById('page-'+pagina).classList.add('active');
+  document.querySelectorAll('.nav-item').forEach(n=>{if(n.getAttribute('onclick')&&n.getAttribute('onclick').includes("'"+pagina+"'"))n.classList.add('active');});
+  document.getElementById('topbarTitle').textContent = titulos[pagina]||pagina;
+  if(pagina==='dashboard') cargarDashboard();
+  if(pagina==='generar') cargarSelectoresProyecto();
+  if(pagina==='documentacion') cargarSelectoresDocumentacion();
+  if(pagina==='prediccion') cargarSelectoresPrediccion();
+  if(pagina==='chat') cargarSelectoresProyecto(true);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LOADER
+═══════════════════════════════════════════════════════════════════════════ */
+function showLoader(texto='Procesando con IA...') {
+  document.getElementById('loaderText').textContent = texto;
+  document.getElementById('loaderOverlay').classList.add('show');
+  animarProgress();
+}
+function hideLoader() {
+  document.getElementById('loaderOverlay').classList.remove('show');
+  document.getElementById('progressFill').style.width = '0%';
+}
+function animarProgress() {
+  let w = 0;
+  const el = document.getElementById('progressFill');
+  const iv = setInterval(()=>{
+    w += Math.random()*4;
+    if(w>=92){w=92;clearInterval(iv);}
+    el.style.width = w+'%';
+  },300);
+  window._progressInterval = iv;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   ALERTAS
+═══════════════════════════════════════════════════════════════════════════ */
+function mostrarAlerta(contenedorId, tipo, mensaje) {
+  const el = document.getElementById(contenedorId);
+  if(!el) return;
+  const iconos = {success:'✅',error:'❌',info:'ℹ️',warning:'⚠️'};
+  el.innerHTML = `<div class="alert alert-${tipo}">${iconos[tipo]||''} ${mensaje}</div>`;
+  setTimeout(()=>{ if(el) el.innerHTML=''; }, 6000);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   MODAL
+═══════════════════════════════════════════════════════════════════════════ */
+function abrirModal(id) { document.getElementById(id).classList.add('show'); }
+function cerrarModal(id) { document.getElementById(id).classList.remove('show'); }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   CONFIGURACIÓN IA
+═══════════════════════════════════════════════════════════════════════════ */
+function actualizarModelosPorProveedor() {
+  const prov = document.getElementById('cfgProvider').value;
+  const sel = document.getElementById('cfgModel');
+  sel.innerHTML = '';
+  if(prov==='openai'){
+    [['gpt-4o','GPT-4o (Recomendado)'],['gpt-4o-mini','GPT-4o Mini (Rápido)'],['gpt-4-turbo','GPT-4 Turbo']].forEach(([v,l])=>{
+      sel.innerHTML += `<option value="${v}">${l}</option>`;
+    });
+  } else {
+    [['claude-3-5-sonnet-20241022','Claude 3.5 Sonnet (Recomendado)'],['claude-3-haiku-20240307','Claude 3 Haiku (Rápido)'],['claude-3-opus-20240229','Claude 3 Opus']].forEach(([v,l])=>{
+      sel.innerHTML += `<option value="${v}">${l}</option>`;
+    });
+  }
+}
+function guardarConfigIA() {
+  const config = {
+    provider: document.getElementById('cfgProvider').value,
+    api_key: document.getElementById('cfgApiKey').value,
+    model: document.getElementById('cfgModel').value
+  };
+  if(!config.api_key.trim()){alert('Ingresa tu API Key'); return;}
+  estado.configIA = config;
+  localStorage.setItem('docpresupuesto_ia', JSON.stringify(config));
+  cerrarModal('modalConfig');
+  actualizarStatusIA();
+  mostrarAlerta('alertArea','success','Configuración de IA guardada ✓');
+}
+function cargarConfigIA() {
+  if(estado.configIA) {
+    document.getElementById('cfgProvider').value = estado.configIA.provider||'openai';
+    actualizarModelosPorProveedor();
+    document.getElementById('cfgModel').value = estado.configIA.model||'gpt-4o';
+    actualizarStatusIA();
+  }
+}
+function actualizarStatusIA() {
+  if(estado.configIA && estado.configIA.api_key) {
+    const prov = estado.configIA.provider==='openai'?'GPT':'Claude';
+    document.getElementById('sidebarIAStatus').textContent = `IA: ${prov} ✓`;
+    document.getElementById('statIA').textContent = prov;
+  } else {
+    document.getElementById('sidebarIAStatus').textContent = 'IA: No configurada';
+    document.getElementById('statIA').textContent = '—';
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   DASHBOARD
+═══════════════════════════════════════════════════════════════════════════ */
+async function cargarDashboard() {
+  try {
+    const res = await fetch(`${API}/api/proyectos`);
+    const proyectos = await res.json();
+    estado.proyectos = proyectos;
+    document.getElementById('statProyectos').textContent = proyectos.length;
+    
+    // Lista sidebar
+    const sb = document.getElementById('sidebarProjects');
+    if(proyectos.length===0){
+      sb.innerHTML = '<div class="text-muted" style="padding:12px 20px;font-size:0.78rem;">Sin proyectos</div>';
+    } else {
+      sb.innerHTML = proyectos.map(p=>`
+        <div class="project-item ${estado.proyectoActual?.id===p.id?'active':''}" onclick="seleccionarProyecto(${p.id})">
+          <div class="proj-name">${p.nombre}</div>
+          <div class="proj-meta">${p.cliente||'Sin cliente'}</div>
+        </div>
+      `).join('');
+    }
+    
+    // Lista dashboard
+    const dash = document.getElementById('dashboardProjects');
+    if(proyectos.length===0){
+      dash.innerHTML = `
+        <div class="text-center text-muted" style="padding:40px">
+          <div style="font-size:3rem;margin-bottom:12px">📂</div>
+          <div style="font-size:1rem;font-weight:600;color:var(--azul)">Sin proyectos aún</div>
+          <div style="margin-top:8px">Crea tu primer proyecto subiendo las bases técnicas</div>
+          <button class="btn btn-primary mt-4" onclick="navegar('nuevo')">➕ Crear Primer Proyecto</button>
+        </div>`;
+    } else {
+      dash.innerHTML = proyectos.map(p=>`
+        <div class="proj-row" onclick="seleccionarProyecto(${p.id})">
+          <div style="font-size:1.8rem">📁</div>
+          <div>
+            <div class="pname">${p.nombre}</div>
+            <div class="pmeta">${p.codigo_licitacion?`[${p.codigo_licitacion}] · `:''}${p.cliente||'Sin cliente'} · ${new Date(p.fecha_creacion).toLocaleDateString('es-CL')}</div>
+          </div>
+          <span class="pstatus activo">Activo</span>
+          <div class="pactions">
+            <button class="btn btn-primary btn-sm" onclick="event.stopPropagation();irAGenerar(${p.id})">📄 Generar</button>
+            <button class="btn btn-danger btn-sm" onclick="event.stopPropagation();eliminarProyecto(${p.id})">🗑️</button>
+          </div>
+        </div>
+      `).join('');
+    }
+    
+    document.getElementById('statPresupuestos').textContent = proyectos.filter(p=>p.tiene_datos).length;
+    document.getElementById('statDocumentos').textContent = '–';
+    
+  } catch(e) {
+    console.error(e);
+    mostrarAlerta('alertArea','error','Error conectando al servidor. Verifica que el backend esté corriendo.');
+  }
+}
+
+async function seleccionarProyecto(id) {
+  const proyecto = estado.proyectos.find(p=>p.id===id);
+  if(proyecto) {
+    estado.proyectoActual = proyecto;
+    irAGenerar(id);
+  }
+}
+
+function irAGenerar(id) {
+  navegar('generar');
+  setTimeout(()=>{
+    document.getElementById('selectProyectoGenerar').value = id;
+    cargarDatosProyectoGenerar();
+  }, 100);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   SUBIR DOCUMENTO
+═══════════════════════════════════════════════════════════════════════════ */
+let archivoSeleccionado = null;
+function handleDragOver(e){e.preventDefault();document.getElementById('uploadZone').classList.add('dragover');}
+function handleDragLeave(){document.getElementById('uploadZone').classList.remove('dragover');}
+function handleDrop(e){e.preventDefault();handleDragLeave();const f=e.dataTransfer.files[0];if(f)setFile(f);}
+function handleFileSelect(e){const f=e.target.files[0];if(f)setFile(f);}
+function inferirCodigoLicitacionDesdeTexto(texto){
+  const src = (texto||'').toUpperCase().replace(/[.\-\s]+/g,'_');
+  const reCompleto = /OT_[0-9]{8}_[A-Z0-9]+(?:_[A-Z0-9]+)*/;
+  const mCompleto = src.match(reCompleto);
+  if(mCompleto && mCompleto[0]) return mCompleto[0];
+
+  const reBase = /OT_[0-9]{8}/;
+  const mBase = src.match(reBase);
+  if(mBase && mBase[0]) return `${mBase[0]}_CLIENTE`;
+  return '';
+}
+
+function inferirClienteDesdeCodigo(codigo){
+  const cod = (codigo||'').trim().toUpperCase();
+  const m = cod.match(/^OT_[0-9]{8}_(.+)$/);
+  if(!m || !m[1]) return '';
+  return m[1]
+    .split('_')
+    .filter(Boolean)
+    .map(p => p.charAt(0) + p.slice(1).toLowerCase())
+    .join(' ');
+}
+function setFile(f){
+  archivoSeleccionado=f;
+  document.getElementById('fileName').textContent=f.name;
+  document.getElementById('fileSize').textContent=formatBytes(f.size);
+  document.getElementById('fileSelectedInfo').classList.remove('hidden');
+  document.getElementById('uploadZone').style.opacity='0.5';
+
+  const inputCodigo = document.getElementById('inputCodigoLicitacion');
+  const inputCliente = document.getElementById('inputCliente');
+  const codigoActual = (inputCodigo.value||'').trim().toUpperCase();
+  const codigoActualValido = /^OT_[0-9]{8}_[A-Z0-9]+(?:_[A-Z0-9]+)*$/.test(codigoActual);
+  if(!codigoActualValido){
+    const candidatos = [
+      f.name || '',
+      f.webkitRelativePath || ''
+    ];
+    const codigoInferido = candidatos
+      .map(inferirCodigoLicitacionDesdeTexto)
+      .find(Boolean) || '';
+    if(codigoInferido){
+      inputCodigo.value = codigoInferido;
+      mostrarAlerta('alertNuevo','info',`Código detectado automáticamente: ${codigoInferido}`);
+
+      const clienteActual = (inputCliente.value || '').trim();
+      if(!clienteActual || clienteActual.toLowerCase() === 'cliente'){
+        const clienteInferido = inferirClienteDesdeCodigo(codigoInferido);
+        if(clienteInferido){
+          inputCliente.value = clienteInferido;
+        }
+      }
+    }
+  }
+}
+function clearFile(){
+  archivoSeleccionado=null;
+  document.getElementById('fileInput').value='';
+  document.getElementById('fileSelectedInfo').classList.add('hidden');
+  document.getElementById('uploadZone').style.opacity='1';
+}
+function formatBytes(b){if(b<1024)return b+' B';if(b<1048576)return (b/1024).toFixed(1)+' KB';return (b/1048576).toFixed(2)+' MB';}
+
+async function subirDocumento() {
+  const nombre = document.getElementById('inputNombreProyecto').value.trim();
+  const codigo = document.getElementById('inputCodigoLicitacion').value.trim().toUpperCase();
+  const cliente = document.getElementById('inputCliente').value.trim();
+  const codigoRegex = /^OT_[0-9]{8}_[A-Z0-9]+(?:_[A-Z0-9]+)*$/;
+  
+  if(!archivoSeleccionado){mostrarAlerta('alertNuevo','error','Selecciona un documento primero');return;}
+  if(!nombre){mostrarAlerta('alertNuevo','error','Ingresa el nombre del proyecto');return;}
+  if(!codigo){mostrarAlerta('alertNuevo','error','Ingresa el código OT / Licitación');return;}
+  if(!codigoRegex.test(codigo)){
+    mostrarAlerta('alertNuevo','error','Formato inválido. Usa OT_XXXXXXXX_CLIENTE (ej: OT_25086007_POLPAICO)');
+    return;
+  }
+  if(!estado.configIA||!estado.configIA.api_key){
+    mostrarAlerta('alertNuevo','warning','Configura tu API Key primero');
+    abrirModal('modalConfig');return;
+  }
+  
+  showLoader('📖 Extrayendo texto del documento...');
+  
+  const fd = new FormData();
+  fd.append('file', archivoSeleccionado);
+  fd.append('nombre_proyecto', nombre);
+  fd.append('codigo_licitacion', codigo);
+  fd.append('cliente', cliente);
+  fd.append('provider', estado.configIA.provider);
+  fd.append('api_key', estado.configIA.api_key);
+  fd.append('model', estado.configIA.model||'');
+  
+  document.getElementById('loaderText').textContent = '🤖 Analizando con IA...';
+  
+  try {
+    const res = await fetch(`${API}/api/subir-documento`, {method:'POST', body:fd});
+    const data = await res.json();
+    hideLoader();
+    
+    if(!res.ok) throw new Error(data.detail||'Error desconocido');
+    
+    mostrarAlerta('alertNuevo','success',`✅ Proyecto "${nombre}" creado y analizado exitosamente`);
+    clearFile();
+    document.getElementById('inputNombreProyecto').value='';
+    document.getElementById('inputCodigoLicitacion').value='';
+    document.getElementById('inputCliente').value='';
+    
+    setTimeout(()=>{
+      navegar('generar');
+      setTimeout(()=>{
+        cargarSelectoresProyecto();
+        document.getElementById('selectProyectoGenerar').value = data.proyecto_id;
+        cargarDatosProyectoGenerar();
+      },300);
+    },1500);
+    
+  } catch(e) {
+    hideLoader();
+    mostrarAlerta('alertNuevo','error','Error: '+e.message);
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   SELECTORES DE PROYECTO
+═══════════════════════════════════════════════════════════════════════════ */
+async function cargarSelectoresProyecto(esChat=false) {
+  try {
+    const res = await fetch(`${API}/api/proyectos`);
+    const proyectos = await res.json();
+    estado.proyectos = proyectos;
+    
+    const selectId = esChat ? 'selectProyectoChat' : 'selectProyectoGenerar';
+    const sel = document.getElementById(selectId);
+    sel.innerHTML = '<option value="">— Selecciona un proyecto —</option>';
+    proyectos.forEach(p=>{
+      sel.innerHTML += `<option value="${p.id}">${p.nombre} (${p.cliente||'sin cliente'})</option>`;
+    });
+  } catch(e){ console.error(e); }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   DOCUMENTACION REQUERIDA
+═══════════════════════════════════════════════════════════════════════════ */
+async function cargarSelectoresDocumentacion() {
+  try {
+    const res = await fetch(`${API}/api/proyectos`);
+    const proyectos = await res.json();
+    const sel = document.getElementById('selectProyectoDocumentacion');
+    sel.innerHTML = '<option value="">— Selecciona un proyecto —</option>';
+    proyectos.forEach(p=>{
+      sel.innerHTML += `<option value="${p.id}">${p.nombre} (${p.cliente||'sin cliente'})</option>`;
+    });
+  } catch(e) {
+    mostrarAlerta('alertDocumentacion','error','No se pudo cargar proyectos');
+  }
+}
+
+async function cargarRequisitosProyecto() {
+  const proyectoId = document.getElementById('selectProyectoDocumentacion').value;
+  const tbody = document.getElementById('tablaRequisitosBody');
+  const arbol = document.getElementById('arbolDocumentacion');
+  if(!proyectoId) {
+    tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted" style="padding:16px;">Selecciona un proyecto para ver requisitos</td></tr>';
+    arbol.innerHTML = '<div class="text-muted">Selecciona un proyecto para visualizar el árbol documental.</div>';
+    return;
+  }
+  try {
+    const [resReq, resArbol] = await Promise.all([
+      fetch(`${API}/api/proyectos/${proyectoId}/requisitos`),
+      fetch(`${API}/api/proyectos/${proyectoId}/documentacion/arbol`)
+    ]);
+    const requisitos = await resReq.json();
+    const arbolData = await resArbol.json();
+    renderRequisitosDocumentales(requisitos || []);
+    renderArbolDocumentacion(arbolData || {});
+  } catch(e) {
+    mostrarAlerta('alertDocumentacion','error','No se pudieron cargar requisitos');
+  }
+}
+
+async function exportarIndiceDocumental(formato) {
+  const proyectoId = document.getElementById('selectProyectoDocumentacion').value;
+  if(!proyectoId) {
+    mostrarAlerta('alertDocumentacion','error','Selecciona un proyecto');
+    return;
+  }
+  showLoader(`📦 Exportando índice documental (${formato.toUpperCase()})...`);
+  try {
+    const res = await fetch(`${API}/api/proyectos/${proyectoId}/documentacion/exportar?formato=${encodeURIComponent(formato)}`, {
+      method: 'POST'
+    });
+    const data = await res.json();
+    hideLoader();
+    if(!res.ok) throw new Error(data.detail || 'Error exportando índice');
+    mostrarAlerta(
+      'alertDocumentacion',
+      'success',
+      `Índice exportado: <strong>${data.filename}</strong> · <a href="${API}${data.download_url}" download style="color:var(--azul);font-weight:700">Descargar</a>`
+    );
+  } catch(e) {
+    hideLoader();
+    mostrarAlerta('alertDocumentacion','error','Error exportando índice: ' + e.message);
+  }
+}
+
+async function sincronizarRequisitosIA() {
+  const proyectoId = document.getElementById('selectProyectoDocumentacion').value;
+  if(!proyectoId) {
+    mostrarAlerta('alertDocumentacion','error','Selecciona un proyecto');
+    return;
+  }
+  try {
+    const res = await fetch(`${API}/api/requisitos/sincronizar/${proyectoId}`, { method:'POST' });
+    const data = await res.json();
+    if(!res.ok) throw new Error(data.detail || 'Error al sincronizar');
+    mostrarAlerta('alertDocumentacion','success',`Sincronización completada. Creados: ${data.creados || 0}`);
+    await cargarRequisitosProyecto();
+  } catch(e) {
+    mostrarAlerta('alertDocumentacion','error','Error sincronizando: ' + e.message);
+  }
+}
+
+async function crearRequisitoManual() {
+  const proyectoId = document.getElementById('selectProyectoDocumentacion').value;
+  const nombre = document.getElementById('inputReqNombre').value.trim();
+  if(!proyectoId) {
+    mostrarAlerta('alertDocumentacion','error','Selecciona un proyecto');
+    return;
+  }
+  if(!nombre) {
+    mostrarAlerta('alertDocumentacion','error','Ingresa el nombre del requisito');
+    return;
+  }
+  const payload = {
+    proyecto_id: parseInt(proyectoId),
+    nombre,
+    categoria: document.getElementById('inputReqCategoria').value,
+    observaciones: document.getElementById('inputReqObs').value.trim(),
+    estado: 'pendiente'
+  };
+  try {
+    const res = await fetch(`${API}/api/requisitos`, {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+    if(!res.ok) throw new Error(data.detail || 'Error creando requisito');
+    document.getElementById('inputReqNombre').value = '';
+    document.getElementById('inputReqObs').value = '';
+    mostrarAlerta('alertDocumentacion','success','Requisito agregado');
+    await cargarRequisitosProyecto();
+  } catch(e) {
+    mostrarAlerta('alertDocumentacion','error','Error agregando requisito: ' + e.message);
+  }
+}
+
+function renderRequisitosDocumentales(requisitos) {
+  const tbody = document.getElementById('tablaRequisitosBody');
+  if(!requisitos || requisitos.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted" style="padding:16px;">Sin requisitos cargados para este proyecto</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = requisitos.map(r => `
+    <tr>
+      <td>${r.nombre || ''}</td>
+      <td>${r.categoria || ''}</td>
+      <td>
+        <select id="reqEstado_${r.id}">
+          <option value="pendiente" ${r.estado==='pendiente'?'selected':''}>Pendiente</option>
+          <option value="en_revision" ${r.estado==='en_revision'?'selected':''}>En revisión</option>
+          <option value="cumplido" ${r.estado==='cumplido'?'selected':''}>Cumplido</option>
+        </select>
+      </td>
+      <td><input id="reqObs_${r.id}" type="text" value="${(r.observaciones || '').replace(/"/g, '&quot;')}" placeholder="Observaciones"/></td>
+      <td><span class="monospace" style="font-size:0.72rem;">${r.carpeta_objetivo || ''}</span></td>
+      <td>
+        <div style="display:flex;flex-direction:column;gap:6px;">
+          <span class="text-muted" style="font-size:0.75rem;">${r.evidencias_count || 0} archivo(s)</span>
+          <input type="file" id="evidenciaFile_${r.id}" style="font-size:0.74rem;"/>
+        </div>
+      </td>
+      <td>
+        <div class="btn-group" style="margin-top:0;">
+          <button class="btn btn-primary btn-sm" onclick="actualizarRequisito(${r.id})">Guardar</button>
+          <button class="btn btn-success btn-sm" onclick="subirEvidenciaRequisito(${r.id})">Subir evidencia</button>
+          <button class="btn btn-secondary btn-sm" onclick="verEvidenciasRequisito(${r.id})">Ver</button>
+        </div>
+      </td>
+    </tr>
+  `).join('');
+}
+
+async function actualizarRequisito(requisitoId) {
+  const estadoReq = document.getElementById(`reqEstado_${requisitoId}`).value;
+  const observaciones = document.getElementById(`reqObs_${requisitoId}`).value.trim();
+  try {
+    const res = await fetch(`${API}/api/requisitos/${requisitoId}`, {
+      method:'PUT',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ estado: estadoReq, observaciones })
+    });
+    const data = await res.json();
+    if(!res.ok) throw new Error(data.detail || 'Error actualizando requisito');
+    mostrarAlerta('alertDocumentacion','success','Requisito actualizado');
+  } catch(e) {
+    mostrarAlerta('alertDocumentacion','error','Error al actualizar: ' + e.message);
+  }
+}
+
+async function subirEvidenciaRequisito(requisitoId) {
+  const input = document.getElementById(`evidenciaFile_${requisitoId}`);
+  if(!input || !input.files || !input.files[0]) {
+    mostrarAlerta('alertDocumentacion','error','Selecciona un archivo de evidencia');
+    return;
+  }
+  const fd = new FormData();
+  fd.append('file', input.files[0]);
+  try {
+    const res = await fetch(`${API}/api/requisitos/${requisitoId}/evidencia`, {
+      method:'POST',
+      body: fd
+    });
+    const data = await res.json();
+    if(!res.ok) throw new Error(data.detail || 'Error subiendo evidencia');
+    mostrarAlerta('alertDocumentacion','success',`Evidencia subida en: ${data.carpeta_relativa}`);
+    await cargarRequisitosProyecto();
+  } catch(e) {
+    mostrarAlerta('alertDocumentacion','error','Error al subir evidencia: ' + e.message);
+  }
+}
+
+async function verEvidenciasRequisito(requisitoId) {
+  try {
+    const res = await fetch(`${API}/api/requisitos/${requisitoId}/evidencias`);
+    const evidencias = await res.json();
+    if(!res.ok) throw new Error(evidencias.detail || 'Error obteniendo evidencias');
+    if(!evidencias || evidencias.length === 0) {
+      mostrarAlerta('alertDocumentacion','info','Este requisito aún no tiene evidencias');
+      return;
+    }
+    const links = evidencias
+      .map(e => `${e.orden}. <a href="${API}${e.download_url}" download>${e.nombre_archivo}</a>`)
+      .join('<br/>');
+    mostrarAlerta('alertDocumentacion','info',`Evidencias cargadas:<br/>${links}`);
+  } catch(e) {
+    mostrarAlerta('alertDocumentacion','error','Error consultando evidencias: ' + e.message);
+  }
+}
+
+function renderArbolDocumentacion(data) {
+  const el = document.getElementById('arbolDocumentacion');
+  const secciones = data.secciones || [];
+  if(secciones.length === 0) {
+    el.innerHTML = '<div class="text-muted">No hay estructura documental disponible.</div>';
+    return;
+  }
+
+  el.innerHTML = secciones.map(sec => {
+    const reqs = sec.requisitos || [];
+    const contenido = reqs.length === 0
+      ? '<div class="text-muted" style="font-size:0.78rem;">Sin requisitos en esta sección</div>'
+      : reqs.map(r => {
+          const evs = r.evidencias || [];
+          const evHtml = evs.length === 0
+            ? '<div class="text-muted" style="font-size:0.75rem;">Sin evidencias</div>'
+            : `<div style="display:flex;flex-direction:column;gap:4px;margin-top:6px;">
+                ${evs.map(e => `<a href="${API}${e.download_url}" download style="font-size:0.78rem;">📎 ${e.orden}. ${e.nombre_archivo}</a>`).join('')}
+              </div>`;
+          return `
+            <div style="padding:10px 12px;background:var(--blanco);border:1px solid var(--gris-m);border-radius:var(--radio-s);margin-bottom:8px;">
+              <div style="font-weight:700;color:var(--azul);font-size:0.85rem;">${r.requisito}</div>
+              <div class="text-muted" style="font-size:0.73rem;">${r.categoria || ''} · Estado: ${r.estado || ''}</div>
+              <div class="monospace" style="font-size:0.72rem;margin-top:4px;">${r.carpeta_objetivo || ''}</div>
+              ${evHtml}
+            </div>
+          `;
+        }).join('');
+
+    return `
+      <div style="margin-bottom:14px;">
+        <div style="font-size:0.88rem;font-weight:800;color:var(--azul);margin-bottom:8px;">📁 ${sec.seccion}</div>
+        ${contenido}
+      </div>
+    `;
+  }).join('');
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   PREDICCION ADJUDICACION
+═══════════════════════════════════════════════════════════════════════════ */
+async function cargarSelectoresPrediccion() {
+  try {
+    const res = await fetch(`${API}/api/proyectos`);
+    const proyectos = await res.json();
+    estado.proyectos = proyectos;
+
+    const sel = document.getElementById('selectProyectoPrediccion');
+    sel.innerHTML = '<option value="">— Selecciona un proyecto —</option>';
+    proyectos.forEach(p=>{
+      sel.innerHTML += `<option value="${p.id}">${p.nombre} (${p.cliente||'sin cliente'})</option>`;
+    });
+  } catch(e) {
+    console.error(e);
+    mostrarAlerta('alertPrediccion','error','No se pudo cargar el listado de proyectos');
+  }
+}
+
+async function cargarDatosPrediccion() {
+  const proyectoId = document.getElementById('selectProyectoPrediccion').value;
+  const ofertaSel = document.getElementById('selectOfertaPrediccion');
+  const ofertaLevelingSel = document.getElementById('selectOfertasLeveling');
+  const historial = document.getElementById('historialPredicciones');
+  document.getElementById('resultadoPrediccion').classList.add('hidden');
+  document.getElementById('resultadoPrediccion').innerHTML = '';
+  document.getElementById('resultadoBidLeveling').classList.add('hidden');
+  document.getElementById('resultadoBidLeveling').innerHTML = '';
+  document.getElementById('resultadoAtractividad').classList.add('hidden');
+  document.getElementById('resultadoAtractividad').innerHTML = '';
+
+  if(!proyectoId) {
+    ofertaSel.innerHTML = '<option value="">— Selecciona una oferta —</option>';
+    ofertaLevelingSel.innerHTML = '';
+    historial.innerHTML = '';
+    renderTablaSimulacion([]);
+    renderHistoricoLicitaciones([]);
+    return;
+  }
+
+  try {
+    const [ofertasRes, predsRes] = await Promise.all([
+      fetch(`${API}/api/proyectos/${proyectoId}/ofertas`),
+      fetch(`${API}/api/proyectos/${proyectoId}/predicciones`)
+    ]);
+    const ofertas = await ofertasRes.json();
+    const predicciones = await predsRes.json();
+
+    ofertaSel.innerHTML = '<option value="">— Selecciona una oferta —</option>';
+    ofertaLevelingSel.innerHTML = '';
+    ofertas.forEach(o=>{
+      ofertaSel.innerHTML += `<option value="${o.id}">${o.nombre} · ${o.plazo_dias||0} días</option>`;
+      ofertaLevelingSel.innerHTML += `<option value="${o.id}">${o.nombre} · ${o.plazo_dias||0} días · $${(o.monto_oferta||0).toLocaleString('es-CL')}</option>`;
+    });
+
+    renderHistorialPredicciones(predicciones);
+    await cargarHistoricoLicitaciones();
+  } catch(e) {
+    console.error(e);
+    mostrarAlerta('alertPrediccion','error','No se pudieron cargar ofertas y predicciones');
+  }
+}
+
+async function ejecutarBidLeveling() {
+  const proyectoId = document.getElementById('selectProyectoPrediccion').value;
+  if(!proyectoId) {
+    mostrarAlerta('alertPrediccion','error','Selecciona un proyecto');
+    return;
+  }
+  const sel = document.getElementById('selectOfertasLeveling');
+  const ofertaIds = Array.from(sel.selectedOptions || []).map(o => parseInt(o.value)).filter(Boolean);
+  if(ofertaIds.length < 2) {
+    mostrarAlerta('alertPrediccion','error','Selecciona al menos 2 ofertas para comparar');
+    return;
+  }
+
+  showLoader('⚖️ Ejecutando bid leveling...');
+  try {
+    const res = await fetch(`${API}/api/prediccion/bid-leveling`, {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({
+        proyecto_id: parseInt(proyectoId),
+        oferta_ids: ofertaIds
+      })
+    });
+    const data = await res.json();
+    hideLoader();
+    if(!res.ok) throw new Error(data.detail || 'Error en bid leveling');
+    renderResultadoBidLeveling(data);
+    mostrarAlerta('alertPrediccion','success','Bid leveling completado');
+  } catch(e) {
+    hideLoader();
+    mostrarAlerta('alertPrediccion','error','Error bid leveling: ' + e.message);
+  }
+}
+
+function renderResultadoBidLeveling(data) {
+  const el = document.getElementById('resultadoBidLeveling');
+  const ranking = data.ranking || [];
+  if(ranking.length === 0) {
+    el.classList.add('hidden');
+    el.innerHTML = '';
+    return;
+  }
+  const resumen = data.resumen || {};
+  el.classList.remove('hidden');
+  el.innerHTML = `
+    <div class="dato-bloque" style="margin-bottom:10px;">
+      <h4>🏁 Recomendación automática</h4>
+      <div style="font-size:0.9rem;"><strong>${resumen.oferta_recomendada_nombre || ''}</strong></div>
+      <div class="text-muted">${resumen.justificacion || ''}</div>
+    </div>
+    <div class="table-wrapper">
+      <table>
+        <thead>
+          <tr>
+            <th>Ranking</th><th>Oferta</th><th>Score</th><th>Prob.</th><th>Riesgo</th><th>Monto</th><th>Plazo</th><th>Brecha score</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${ranking.map((r, idx)=>`
+            <tr>
+              <td>${idx+1}</td>
+              <td>${r.nombre}</td>
+              <td class="td-num">${(r.score||0).toFixed(2)}</td>
+              <td class="td-num">${((r.probabilidad||0)*100).toFixed(2)}%</td>
+              <td class="td-num">${(r.indice_riesgo||0).toFixed(2)}</td>
+              <td class="td-num">$${(r.monto_oferta||0).toLocaleString('es-CL')}</td>
+              <td class="td-num">${r.plazo_dias||0}</td>
+              <td class="td-num">${(r.brecha_score_vs_mejor||0).toFixed(2)}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+async function cargarHistoricoLicitaciones() {
+  try {
+    const res = await fetch(`${API}/api/historico-licitaciones?ultimos_anios=3`);
+    const data = await res.json();
+    if(!res.ok) throw new Error(data.detail || 'Error cargando historico');
+    renderHistoricoLicitaciones(data || []);
+  } catch(e) {
+    mostrarAlerta('alertPrediccion','error','Error cargando histórico: ' + e.message);
+  }
+}
+
+function renderHistoricoLicitaciones(items) {
+  const tbody = document.getElementById('tablaHistoricoBody');
+  if(!items || items.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted" style="padding:14px;">Sin histórico cargado</td></tr>';
+    return;
+  }
+  tbody.innerHTML = items.map(h => `
+    <tr>
+      <td>${h.codigo_licitacion || ''}</td>
+      <td>${h.cliente || ''}</td>
+      <td>${h.rubro || ''}</td>
+      <td class="td-num">$${(h.monto_ofertado||0).toLocaleString('es-CL')}</td>
+      <td class="td-num">${(h.margen_pct||0).toFixed(2)}</td>
+      <td>${h.fue_adjudicada ? 'Adjudicada' : 'No adjudicada'}</td>
+      <td>${h.fecha_cierre ? new Date(h.fecha_cierre).toLocaleDateString('es-CL') : ''}</td>
+    </tr>
+  `).join('');
+}
+
+async function registrarHistoricoLicitacion() {
+  const cliente = (document.getElementById('histCliente').value || '').trim();
+  if(!cliente) {
+    mostrarAlerta('alertPrediccion','error','Cliente histórico es obligatorio');
+    return;
+  }
+  const payload = {
+    codigo_licitacion: (document.getElementById('histCodigo').value || '').trim().toUpperCase(),
+    cliente,
+    rubro: (document.getElementById('histRubro').value || '').trim(),
+    monto_ofertado: numeroSeguro('histMonto', 0),
+    margen_pct: numeroSeguro('histMargen', 0),
+    fue_adjudicada: document.getElementById('histAdjudicada').value === 'true',
+    fecha_cierre: (document.getElementById('histFecha').value || '').trim(),
+    observaciones: (document.getElementById('histObs').value || '').trim()
+  };
+  try {
+    const res = await fetch(`${API}/api/historico-licitaciones`, {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+    if(!res.ok) throw new Error(data.detail || 'Error guardando histórico');
+    mostrarAlerta('alertPrediccion','success','Histórico registrado');
+    ['histCodigo','histCliente','histRubro','histMonto','histMargen','histFecha','histObs'].forEach(id=>{
+      const el = document.getElementById(id); if(el) el.value = '';
+    });
+    document.getElementById('histAdjudicada').value = 'true';
+    await cargarHistoricoLicitaciones();
+  } catch(e) {
+    mostrarAlerta('alertPrediccion','error','Error registrando histórico: ' + e.message);
+  }
+}
+
+async function importarHistoricoMasivo() {
+  const input = document.getElementById('fileHistoricoMasivo');
+  if(!input || !input.files || !input.files[0]) {
+    mostrarAlerta('alertPrediccion','error','Selecciona archivo CSV o XLSX');
+    return;
+  }
+  const fd = new FormData();
+  fd.append('file', input.files[0]);
+  showLoader('📥 Importando histórico masivo...');
+  try {
+    const res = await fetch(`${API}/api/historico-licitaciones/importar`, {
+      method:'POST',
+      body: fd
+    });
+    const data = await res.json();
+    hideLoader();
+    if(!res.ok) throw new Error(data.detail || 'Error importando histórico');
+    mostrarAlerta(
+      'alertPrediccion',
+      'success',
+      `Importación completada. Importados: <strong>${data.importados || 0}</strong> · Omitidos: <strong>${data.omitidos || 0}</strong>`
+    );
+    input.value = '';
+    await cargarHistoricoLicitaciones();
+  } catch(e) {
+    hideLoader();
+    mostrarAlerta('alertPrediccion','error','Error importación masiva: ' + e.message);
+  }
+}
+
+function descargarPlantillaHistorico() {
+  const ruta = '../templates/plantilla_historico_licitaciones.xlsx';
+  window.open(ruta, '_blank');
+}
+
+async function evaluarAtractividadLicitacion() {
+  const proyectoId = document.getElementById('selectProyectoPrediccion').value;
+  if(!proyectoId) {
+    mostrarAlerta('alertPrediccion','error','Selecciona un proyecto');
+    return;
+  }
+  showLoader('🧠 Evaluando atractividad de licitación...');
+  try {
+    const res = await fetch(`${API}/api/prediccion/atractividad`, {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({
+        proyecto_id: parseInt(proyectoId),
+        factores: obtenerFactoresFormulario()
+      })
+    });
+    const data = await res.json();
+    hideLoader();
+    if(!res.ok) throw new Error(data.detail || 'Error en atractividad');
+    renderResultadoAtractividad(data.atractividad || {});
+    mostrarAlerta('alertPrediccion','success','Evaluación de atractividad completada');
+  } catch(e) {
+    hideLoader();
+    mostrarAlerta('alertPrediccion','error','Error de atractividad: ' + e.message);
+  }
+}
+
+function renderResultadoAtractividad(a) {
+  const el = document.getElementById('resultadoAtractividad');
+  if(!a || typeof a !== 'object') {
+    el.classList.add('hidden');
+    el.innerHTML = '';
+    return;
+  }
+  const score = (a.score_atractividad || 0).toFixed(2);
+  const prob = (((a.probabilidad_adjudicacion_ajustada || 0) * 100)).toFixed(2);
+  const m = a.metricas_historicas || {};
+  const decisionColor = a.decision === 'go_fuerte' ? 'var(--verde)' : (a.decision === 'go_condicionado' ? 'var(--dorado)' : 'var(--rojo)');
+
+  el.classList.remove('hidden');
+  el.innerHTML = `
+    <div class="dato-bloque">
+      <h4>🎯 Decisión Go/No-Go</h4>
+      <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:center;">
+        <div style="font-size:1.1rem;font-weight:800;color:${decisionColor};">${(a.decision||'').replace('_',' ').toUpperCase()}</div>
+        <div><strong>Score atractividad:</strong> ${score}</div>
+        <div><strong>Probabilidad ajustada:</strong> ${prob}%</div>
+      </div>
+      <div class="text-muted" style="margin-top:6px;">${a.recomendacion || ''}</div>
+      <div style="margin-top:8px;font-size:0.85rem;">
+        Muestra 3y: <strong>${m.muestra_3y || 0}</strong> ·
+        Win rate 3y: <strong>${m.win_rate_3y || 0}%</strong> ·
+        Win rate cliente: <strong>${m.win_rate_cliente_objetivo || 0}%</strong> ·
+        Margen promedio: <strong>${m.margen_promedio_pct || 0}%</strong>
+      </div>
+    </div>
+  `;
+}
+
+async function entrenarModeloMLAtractividad() {
+  showLoader('🧪 Entrenando modelo ML v2 de atractividad...');
+  try {
+    const res = await fetch(`${API}/api/prediccion/atractividad/ml/train`, {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ ultimos_anios: 3, epochs: 800, lr: 0.02 })
+    });
+    const data = await res.json();
+    hideLoader();
+    if(!res.ok) throw new Error(data.detail || 'Error entrenando ML');
+    const m = data.metrics || {};
+    mostrarAlerta('alertPrediccion','success',`Modelo entrenado. Acc train: ${m.accuracy_train||0} · Acc val: ${m.accuracy_val||0}`);
+  } catch(e) {
+    hideLoader();
+    mostrarAlerta('alertPrediccion','error','Error entrenamiento ML: ' + e.message);
+  }
+}
+
+async function consultarEstadoModeloML() {
+  try {
+    const res = await fetch(`${API}/api/prediccion/atractividad/ml/status`);
+    const data = await res.json();
+    if(!res.ok) throw new Error(data.detail || 'Error estado ML');
+    const el = document.getElementById('resultadoAtractividadML');
+    el.classList.remove('hidden');
+    el.innerHTML = `
+      <div class="dato-bloque">
+        <h4>📈 Estado modelo ML v2</h4>
+        <div>Ready: <strong>${data.ready ? 'Sí' : 'No'}</strong></div>
+        <div>Versión: <strong>${data.version || '-'}</strong></div>
+        <div>Entrenado: <strong>${data.trained_at || '-'}</strong></div>
+        <div>Train/Val: <strong>${data.train_size || 0}</strong> / <strong>${data.val_size || 0}</strong></div>
+        <div>Acc train / val: <strong>${data.accuracy_train || 0}</strong> / <strong>${data.accuracy_val || 0}</strong></div>
+      </div>
+    `;
+  } catch(e) {
+    mostrarAlerta('alertPrediccion','error','Error estado ML: ' + e.message);
+  }
+}
+
+async function evaluarAtractividadMLV2() {
+  const proyectoId = document.getElementById('selectProyectoPrediccion').value;
+  if(!proyectoId) {
+    mostrarAlerta('alertPrediccion','error','Selecciona un proyecto');
+    return;
+  }
+  showLoader('🤖 Evaluando atractividad con ML v2...');
+  try {
+    const res = await fetch(`${API}/api/prediccion/atractividad/ml/evaluar`, {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({
+        proyecto_id: parseInt(proyectoId),
+        monto_oferta: numeroSeguro('inputOfertaMonto', 0),
+        margen_pct: numeroSeguro('histMargen', 0),
+        rubro: (document.getElementById('histRubro').value || '').trim(),
+        cliente: (document.getElementById('histCliente').value || '').trim()
+      })
+    });
+    const data = await res.json();
+    hideLoader();
+    if(!res.ok) throw new Error(data.detail || 'Error evaluación ML');
+    const r = data.resultado_ml || {};
+    const el = document.getElementById('resultadoAtractividadML');
+    el.classList.remove('hidden');
+    el.innerHTML = `
+      <div class="dato-bloque">
+        <h4>🤖 Resultado atractividad ML v2</h4>
+        <div>Decisión ML: <strong>${(r.decision_ml||'').replace('_',' ').toUpperCase()}</strong></div>
+        <div>Score ML: <strong>${r.score_atractividad_ml || 0}</strong></div>
+        <div>Probabilidad ML: <strong>${(((r.probabilidad_ml||0)*100).toFixed(2))}%</strong></div>
+        <div class="text-muted" style="margin-top:6px;">Modelo: ${data.modelo?.version || '-'} · Acc val: ${data.modelo?.accuracy_val || 0}</div>
+      </div>
+    `;
+  } catch(e) {
+    hideLoader();
+    mostrarAlerta('alertPrediccion','error','Error evaluación ML: ' + e.message);
+  }
+}
+
+function numeroSeguro(id, fallback=0) {
+  const value = parseFloat(document.getElementById(id).value);
+  if(Number.isNaN(value)) return fallback;
+  return value;
+}
+
+function clampFactor(value) {
+  return Math.max(0, Math.min(100, value));
+}
+
+function guardarEscenariosSimulacion() {
+  localStorage.setItem('docpresupuesto_escenarios', JSON.stringify(estado.escenariosSimulacion));
+}
+
+function cargarEscenariosSimulacion() {
+  const raw = localStorage.getItem('docpresupuesto_escenarios');
+  if(!raw) return;
+  try {
+    const parsed = JSON.parse(raw);
+    if(Array.isArray(parsed) && parsed.length === 3) {
+      estado.escenariosSimulacion = parsed.map((esc, idx) => ({
+        nombre: (esc?.nombre || `Escenario ${idx + 1}`).trim() || `Escenario ${idx + 1}`,
+        factores: esc?.factores || {}
+      }));
+    }
+  } catch(_) {
+    // Ignorar estado local inválido
+  }
+}
+
+function sincronizarInputsNombresEscenario() {
+  for(let i = 1; i <= 3; i += 1) {
+    const input = document.getElementById(`nombreEscenario${i}`);
+    if(input) input.value = estado.escenariosSimulacion[i - 1].nombre;
+  }
+}
+
+function actualizarNombreEscenario(numeroEscenario) {
+  const idx = numeroEscenario - 1;
+  if(idx < 0 || idx > 2) return;
+  const input = document.getElementById(`nombreEscenario${numeroEscenario}`);
+  if(!input) return;
+  const nombre = (input.value || '').trim();
+  estado.escenariosSimulacion[idx].nombre = nombre || `Escenario ${numeroEscenario}`;
+  guardarEscenariosSimulacion();
+}
+
+function duplicarEscenario(origen, destino) {
+  const idxOrigen = origen - 1;
+  const idxDestino = destino - 1;
+  if(idxOrigen < 0 || idxOrigen > 2 || idxDestino < 0 || idxDestino > 2) return;
+
+  const escOrigen = estado.escenariosSimulacion[idxOrigen];
+  estado.escenariosSimulacion[idxDestino].factores = { ...(escOrigen?.factores || {}) };
+  if(Object.keys(estado.escenariosSimulacion[idxDestino].factores).length === 0) {
+    mostrarAlerta('alertPrediccion', 'warning', `El ${escOrigen?.nombre || `Escenario ${origen}`} no tiene factores cargados`);
+    return;
+  }
+
+  guardarEscenariosSimulacion();
+  mostrarAlerta('alertPrediccion', 'info', `Duplicado: ${escOrigen?.nombre || `Escenario ${origen}`} → ${estado.escenariosSimulacion[idxDestino].nombre}`);
+}
+
+function resetEscenarios() {
+  estado.escenariosSimulacion = [
+    { nombre: 'Escenario 1', factores: {} },
+    { nombre: 'Escenario 2', factores: {} },
+    { nombre: 'Escenario 3', factores: {} }
+  ];
+  sincronizarInputsNombresEscenario();
+  guardarEscenariosSimulacion();
+  renderTablaSimulacion([]);
+  mostrarAlerta('alertPrediccion', 'success', 'Escenarios reiniciados');
+}
+
+function obtenerFactoresFormulario() {
+  return {
+    cumplimiento_requisitos: clampFactor(numeroSeguro('factorCumplimiento', 70)),
+    competitividad_precio: clampFactor(numeroSeguro('factorPrecio', 70)),
+    solidez_tecnica: clampFactor(numeroSeguro('factorTecnica', 70)),
+    solidez_hse: clampFactor(numeroSeguro('factorHse', 70)),
+    riesgo_contractual: clampFactor(numeroSeguro('factorRiesgo', 40))
+  };
+}
+
+function cargarEscenarioDesdeFormulario(numeroEscenario) {
+  const idx = numeroEscenario - 1;
+  if(idx < 0 || idx > 2) return;
+  estado.escenariosSimulacion[idx].factores = obtenerFactoresFormulario();
+  if(!estado.escenariosSimulacion[idx].nombre) {
+    estado.escenariosSimulacion[idx].nombre = `Escenario ${numeroEscenario}`;
+  }
+  guardarEscenariosSimulacion();
+  mostrarAlerta('alertPrediccion', 'info', `Factores cargados en ${estado.escenariosSimulacion[idx].nombre}`);
+}
+
+async function simularEscenarios() {
+  const proyectoId = document.getElementById('selectProyectoPrediccion').value;
+  if(!proyectoId) {
+    mostrarAlerta('alertPrediccion','error','Selecciona un proyecto para simular');
+    return;
+  }
+
+  const escenariosValidos = estado.escenariosSimulacion.filter(e => Object.keys(e.factores || {}).length > 0);
+  if(escenariosValidos.length === 0) {
+    mostrarAlerta('alertPrediccion','warning','Carga al menos un escenario con los botones de simulación');
+    return;
+  }
+
+  showLoader('🧪 Simulando escenarios de adjudicación...');
+  try {
+    const res = await fetch(`${API}/api/prediccion/simular`, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({
+        proyecto_id: parseInt(proyectoId),
+        escenarios: escenariosValidos
+      })
+    });
+    const data = await res.json();
+    hideLoader();
+    if(!res.ok) throw new Error(data.detail || 'Error simulando escenarios');
+    renderTablaSimulacion(data.ranking || []);
+    mostrarAlerta('alertPrediccion','success','Simulación completada');
+  } catch(e) {
+    hideLoader();
+    mostrarAlerta('alertPrediccion','error','Error en simulación: ' + e.message);
+  }
+}
+
+function renderTablaSimulacion(ranking) {
+  const tbody = document.getElementById('tablaSimulacionBody');
+  if(!ranking || ranking.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted" style="padding:14px;">Sin simulaciones todavía</td></tr>';
+    return;
+  }
+  tbody.innerHTML = ranking.map((r, i) => {
+    const score = (r.resultado?.score || 0).toFixed(2);
+    const prob = (((r.resultado?.probabilidad_adjudicacion || 0) * 100)).toFixed(2) + '%';
+    const sugerencia = (r.resultado?.recomendaciones || [])[0] || 'Sin sugerencias';
+    return `
+      <tr>
+        <td>${i+1}. ${r.escenario}</td>
+        <td class="td-num">${score}</td>
+        <td class="td-num">${prob}</td>
+        <td>${sugerencia}</td>
+      </tr>
+    `;
+  }).join('');
+}
+
+async function registrarOfertaPrediccion() {
+  const proyectoId = document.getElementById('selectProyectoPrediccion').value;
+  const nombre = document.getElementById('inputOfertaNombre').value.trim();
+  if(!proyectoId) {
+    mostrarAlerta('alertPrediccion','error','Selecciona un proyecto');
+    return;
+  }
+  if(!nombre) {
+    mostrarAlerta('alertPrediccion','error','Ingresa nombre de oferta');
+    return;
+  }
+
+  const payload = {
+    proyecto_id: parseInt(proyectoId),
+    nombre,
+    monto_oferta: numeroSeguro('inputOfertaMonto', 0),
+    plazo_dias: parseInt(numeroSeguro('inputOfertaPlazo', 0)),
+    notas: document.getElementById('inputOfertaNotas').value.trim(),
+    factores: obtenerFactoresFormulario()
+  };
+
+  try {
+    const res = await fetch(`${API}/api/prediccion/oferta`, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+    if(!res.ok) throw new Error(data.detail || 'Error registrando oferta');
+
+    mostrarAlerta('alertPrediccion','success',`Oferta registrada: <strong>${data.nombre}</strong>`);
+    document.getElementById('inputOfertaNombre').value = '';
+    document.getElementById('inputOfertaMonto').value = '';
+    document.getElementById('inputOfertaPlazo').value = '';
+    document.getElementById('inputOfertaNotas').value = '';
+
+    await cargarDatosPrediccion();
+    document.getElementById('selectOfertaPrediccion').value = String(data.oferta_id);
+  } catch(e) {
+    mostrarAlerta('alertPrediccion','error','Error al registrar oferta: ' + e.message);
+  }
+}
+
+async function calcularPrediccionOferta() {
+  const ofertaId = document.getElementById('selectOfertaPrediccion').value;
+  const proyectoId = document.getElementById('selectProyectoPrediccion').value;
+  if(!proyectoId) {
+    mostrarAlerta('alertPrediccion','error','Selecciona un proyecto');
+    return;
+  }
+  if(!ofertaId) {
+    mostrarAlerta('alertPrediccion','error','Selecciona una oferta registrada');
+    return;
+  }
+
+  showLoader('🎯 Calculando probabilidad de adjudicación...');
+  try {
+    const res = await fetch(`${API}/api/prediccion/calcular/${ofertaId}`, { method: 'POST' });
+    const data = await res.json();
+    hideLoader();
+    if(!res.ok) throw new Error(data.detail || 'Error calculando predicción');
+
+    await cargarDatosPrediccion();
+    renderResultadoPrediccion(data.resultado);
+    mostrarAlerta('alertPrediccion','success','Predicción calculada y guardada en historial');
+  } catch(e) {
+    hideLoader();
+    mostrarAlerta('alertPrediccion','error','Error de predicción: ' + e.message);
+  }
+}
+
+function renderResultadoPrediccion(resultado) {
+  const el = document.getElementById('resultadoPrediccion');
+  if(!resultado) {
+    el.classList.add('hidden');
+    el.innerHTML = '';
+    return;
+  }
+  const score = resultado.score || 0;
+  const scoreBase = resultado.score_base || score;
+  const prob = ((resultado.probabilidad_adjudicacion || 0) * 100).toFixed(2);
+  const indiceRiesgo = (resultado.indice_riesgo || 0).toFixed(2);
+  const penalizacionRiesgo = (resultado.penalizacion_riesgo || 0).toFixed(2);
+  const positivos = (resultado.top_factores_positivos || []).map(f=>`<li>${f.factor}: ${f.puntaje}</li>`).join('');
+  const negativos = (resultado.top_factores_negativos || []).map(f=>`<li>${f.factor}: ${f.puntaje}</li>`).join('');
+  const recomendaciones = (resultado.recomendaciones || []).map(r=>`<li>${r}</li>`).join('');
+  const matrizRiesgo = (resultado.matriz_riesgos || []).map(r =>
+    `<li>${r.riesgo}: P${r.probabilidad} x I${r.impacto} = <strong>${r.nivel}</strong></li>`
+  ).join('');
+  const esc = resultado.escenarios || {};
+
+  el.classList.remove('hidden');
+  el.innerHTML = `
+    <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:center;margin-bottom:12px;">
+      <div style="padding:10px 14px;background:var(--blanco);border-radius:var(--radio-s);border:1px solid var(--gris-m);">
+        <div style="font-size:0.72rem;color:#888;">Score</div>
+        <div style="font-size:1.25rem;font-weight:800;color:var(--azul);">${score}</div>
+      </div>
+      <div style="padding:10px 14px;background:var(--blanco);border-radius:var(--radio-s);border:1px solid var(--gris-m);">
+        <div style="font-size:0.72rem;color:#888;">Score base</div>
+        <div style="font-size:1.05rem;font-weight:800;color:var(--azul);">${scoreBase}</div>
+      </div>
+      <div style="padding:10px 14px;background:var(--blanco);border-radius:var(--radio-s);border:1px solid var(--gris-m);">
+        <div style="font-size:0.72rem;color:#888;">Probabilidad</div>
+        <div style="font-size:1.25rem;font-weight:800;color:var(--verde);">${prob}%</div>
+      </div>
+      <div style="padding:10px 14px;background:var(--blanco);border-radius:var(--radio-s);border:1px solid var(--gris-m);">
+        <div style="font-size:0.72rem;color:#888;">Índice riesgo</div>
+        <div style="font-size:1.05rem;font-weight:800;color:var(--rojo);">${indiceRiesgo}</div>
+      </div>
+      <div style="padding:10px 14px;background:var(--blanco);border-radius:var(--radio-s);border:1px solid var(--gris-m);">
+        <div style="font-size:0.72rem;color:#888;">Penalización riesgo</div>
+        <div style="font-size:1.05rem;font-weight:800;color:var(--rojo);">-${penalizacionRiesgo}</div>
+      </div>
+      <div style="padding:10px 14px;background:var(--blanco);border-radius:var(--radio-s);border:1px solid var(--gris-m);">
+        <div style="font-size:0.72rem;color:#888;">Modelo</div>
+        <div style="font-size:0.95rem;font-weight:700;color:var(--azul);">${resultado.version_modelo || 'rules-v1'}</div>
+      </div>
+    </div>
+    <div class="form-grid">
+      <div class="dato-bloque">
+        <h4>✅ Factores positivos</h4>
+        <ul style="padding-left:18px;display:flex;flex-direction:column;gap:6px;">${positivos || '<li>Sin datos</li>'}</ul>
+      </div>
+      <div class="dato-bloque">
+        <h4>⚠️ Factores a mejorar</h4>
+        <ul style="padding-left:18px;display:flex;flex-direction:column;gap:6px;">${negativos || '<li>Sin datos</li>'}</ul>
+      </div>
+    </div>
+    <div class="form-grid" style="margin-top:10px;">
+      <div class="dato-bloque">
+        <h4>🧭 Matriz de riesgos</h4>
+        <ul style="padding-left:18px;display:flex;flex-direction:column;gap:6px;">${matrizRiesgo || '<li>Sin matriz de riesgo</li>'}</ul>
+      </div>
+      <div class="dato-bloque">
+        <h4>📊 Escenarios de confianza</h4>
+        <ul style="padding-left:18px;display:flex;flex-direction:column;gap:6px;">
+          <li>Pesimista: ${((((esc.pesimista||{}).probabilidad)||0)*100).toFixed(2)}% (score ${(esc.pesimista||{}).score ?? '-'})</li>
+          <li>Base: ${((((esc.base||{}).probabilidad)||0)*100).toFixed(2)}% (score ${(esc.base||{}).score ?? '-'})</li>
+          <li>Optimista: ${((((esc.optimista||{}).probabilidad)||0)*100).toFixed(2)}% (score ${(esc.optimista||{}).score ?? '-'})</li>
+        </ul>
+      </div>
+    </div>
+    <div class="dato-bloque" style="margin-top:12px;">
+      <h4>🚀 Recomendaciones</h4>
+      <ul style="padding-left:18px;display:flex;flex-direction:column;gap:6px;">${recomendaciones || '<li>Sin recomendaciones</li>'}</ul>
+    </div>
+  `;
+}
+
+function renderHistorialPredicciones(predicciones) {
+  const el = document.getElementById('historialPredicciones');
+  if(!predicciones || predicciones.length === 0) {
+    el.innerHTML = '<div class="text-muted">No hay predicciones registradas para este proyecto.</div>';
+    return;
+  }
+
+  el.innerHTML = `
+    <h3 style="color:var(--azul);margin-bottom:10px;font-size:0.95rem">Historial de predicciones</h3>
+    <div class="table-wrapper">
+      <table>
+        <thead>
+          <tr><th>ID</th><th>Oferta</th><th>Score</th><th>Probabilidad</th><th>Modelo</th><th>Fecha</th></tr>
+        </thead>
+        <tbody>
+          ${predicciones.map(p=>`
+            <tr>
+              <td>${p.id}</td>
+              <td>${p.oferta_nombre || ('Oferta #' + p.oferta_id)}</td>
+              <td class="td-num">${(p.score || 0).toFixed(2)}</td>
+              <td class="td-num">${((p.probabilidad || 0) * 100).toFixed(2)}%</td>
+              <td>${p.version_modelo || ''}</td>
+              <td>${p.fecha_creacion ? new Date(p.fecha_creacion).toLocaleString('es-CL') : ''}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   DATOS EXTRAÍDOS
+═══════════════════════════════════════════════════════════════════════════ */
+async function cargarDatosProyectoGenerar() {
+  const id = document.getElementById('selectProyectoGenerar').value;
+  if(!id){ document.getElementById('panelDatosExtraidos').classList.add('hidden'); return; }
+  
+  try {
+    const res = await fetch(`${API}/api/proyectos/${id}/datos`);
+    const datos = await res.json();
+    document.getElementById('panelDatosExtraidos').classList.remove('hidden');
+    renderDatosExtraidos(datos);
+    
+    const docRes = await fetch(`${API}/api/proyectos/${id}/documentos`);
+    const docs = await docRes.json();
+    renderDocumentosGenerados(docs);
+  } catch(e){ console.error(e); }
+}
+
+function renderDatosExtraidos(datos) {
+  const grid = document.getElementById('datosExtraidosGrid');
+  const proy = datos.proyecto||{};
+  
+  grid.innerHTML = `
+    <div class="dato-bloque">
+      <h4>📋 Información General</h4>
+      ${datoRow('Nombre',proy.nombre)}
+      ${datoRow('Mandante',proy.mandante)}
+      ${datoRow('Moneda',proy.moneda)}
+      ${datoRow('Modalidad',proy.modalidad)}
+      ${datoRow('Plazo',proy.plazo_ejecucion)}
+      ${datoRow('Ubicación',proy.ubicacion)}
+    </div>
+    <div class="dato-bloque">
+      <h4>📅 Fechas Clave</h4>
+      ${datoRow('Inicio',proy.fecha_inicio)}
+      ${datoRow('Término',proy.fecha_termino)}
+      ${Object.entries(datos.fechas_clave||{}).map(([k,v])=>datoRow(k,v)).join('')}
+    </div>
+    <div class="dato-bloque">
+      <h4>⚙️ Requisitos Técnicos</h4>
+      <div class="tag-list">${(datos.requisitos_tecnicos||[]).map(r=>`<span class="tag">${r}</span>`).join('')||'<span class="text-muted">No detectados</span>'}</div>
+    </div>
+    <div class="dato-bloque">
+      <h4>📜 Documentos Requeridos</h4>
+      <div class="tag-list">${(datos.documentos_requeridos||[]).map(r=>`<span class="tag" style="background:var(--dorado);color:var(--azul)">${r}</span>`).join('')||'<span class="text-muted">No detectados</span>'}</div>
+    </div>
+  `;
+  
+  // Partidas en tab
+  const tbody = document.getElementById('tablaPartidasBody');
+  const partidas = datos.partidas_presupuesto||[];
+  tbody.innerHTML = partidas.length>0 ? partidas.map(p=>`
+    <tr>
+      <td>${p.numero||''}</td>
+      <td>${p.descripcion||''}</td>
+      <td>${p.unidad||''}</td>
+      <td class="td-num">${p.cantidad||''}</td>
+      <td class="td-num">${p.precio_unitario||''}</td>
+    </tr>
+  `).join('') : '<tr><td colspan="5" class="text-center text-muted" style="padding:20px">Las partidas se generarán automáticamente con la IA</td></tr>';
+}
+
+function datoRow(key,val) {
+  if(!val) return '';
+  return `<div class="dato-item"><span class="dato-key">${key}</span><span class="dato-val">${val}</span></div>`;
+}
+
+function renderDocumentosGenerados(docs) {
+  const el = document.getElementById('listaDocumentosGenerados');
+  if(docs.length===0){
+    el.innerHTML = '<div class="text-center text-muted" style="padding:30px">No hay documentos generados aún para este proyecto</div>';
+    return;
+  }
+  el.innerHTML = docs.map(d=>`
+    <div class="proj-row">
+      <div style="font-size:1.5rem">${d.tipo.includes('excel')?'📊':d.tipo.includes('presupuesto')?'💰':'📋'}</div>
+      <div>
+        <div class="pname">${d.nombre}</div>
+        <div class="pmeta">${d.tipo} · ${new Date(d.fecha_creacion).toLocaleDateString('es-CL')}</div>
+      </div>
+      <div class="pactions">
+        <a href="${API}${d.download_url}" class="btn btn-success btn-sm" download>⬇️ Descargar</a>
+      </div>
+    </div>
+  `).join('');
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   GENERAR DOCUMENTO
+═══════════════════════════════════════════════════════════════════════════ */
+function seleccionarDocTipo(tipo, el) {
+  document.querySelectorAll('.doc-card').forEach(c=>c.classList.remove('selected'));
+  el.classList.add('selected');
+  estado.tipoDocSeleccionado = tipo;
+  const nombres = {
+    presupuesto_pdf:'📊 Presupuesto PDF',
+    presupuesto_excel:'📈 Presupuesto Excel',
+    informe_pdf:'📋 Informe Técnico PDF',
+    propuesta_pdf:'🏆 Propuesta Técnica PDF'
+  };
+  document.getElementById('textoTipoSeleccionado').textContent = nombres[tipo]||tipo;
+  document.getElementById('tipoSeleccionado').classList.remove('hidden');
+}
+
+async function generarDocumento() {
+  const proyId = document.getElementById('selectProyectoGenerar').value;
+  if(!proyId){mostrarAlerta('alertGenerar','error','Selecciona un proyecto');return;}
+  if(!estado.tipoDocSeleccionado){mostrarAlerta('alertGenerar','error','Selecciona el tipo de documento');return;}
+  if(!estado.configIA||!estado.configIA.api_key){
+    mostrarAlerta('alertGenerar','warning','Configura tu API Key primero');
+    abrirModal('modalConfig');return;
+  }
+  
+  const tipoLabel = {presupuesto_pdf:'Presupuesto',presupuesto_excel:'Presupuesto Excel',informe_pdf:'Informe Técnico',propuesta_pdf:'Propuesta Técnica'};
+  showLoader(`⚡ Generando ${tipoLabel[estado.tipoDocSeleccionado]||'documento'} con IA...`);
+  
+  try {
+    const res = await fetch(`${API}/api/generar-documento`, {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({
+        proyecto_id: parseInt(proyId),
+        tipo: estado.tipoDocSeleccionado,
+        config_ia: {
+          provider: estado.configIA.provider,
+          api_key: estado.configIA.api_key,
+          model: estado.configIA.model||''
+        }
+      })
+    });
+    const data = await res.json();
+    hideLoader();
+    
+    if(!res.ok) throw new Error(data.detail||'Error desconocido');
+    
+    mostrarAlerta('alertGenerar','success',
+      `✅ Documento generado: <strong>${data.filename}</strong> · <a href="${API}${data.download_url}" download style="color:var(--azul);font-weight:700">⬇️ Descargar ahora</a>`
+    );
+    
+    // Actualizar tab de generados
+    const docRes = await fetch(`${API}/api/proyectos/${proyId}/documentos`);
+    const docs = await docRes.json();
+    renderDocumentosGenerados(docs);
+    
+    // Cambiar a tab generados
+    document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(t=>t.classList.add('hidden'));
+    document.querySelectorAll('.tab')[2].classList.add('active');
+    document.getElementById('tabGenerados').classList.remove('hidden');
+    
+  } catch(e) {
+    hideLoader();
+    mostrarAlerta('alertGenerar','error','Error generando documento: '+e.message);
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   ELIMINAR PROYECTO
+═══════════════════════════════════════════════════════════════════════════ */
+async function eliminarProyecto(id) {
+  if(!confirm('¿Eliminar este proyecto? Esta acción no se puede deshacer.')) return;
+  try {
+    await fetch(`${API}/api/proyectos/${id}`,{method:'DELETE'});
+    cargarDashboard();
+  } catch(e){ alert('Error eliminando proyecto'); }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   CHAT IA
+═══════════════════════════════════════════════════════════════════════════ */
+function actualizarProyectoChat() {/* Ya está sincronizado */}
+
+function usarSugerencia(text) {
+  document.getElementById('chatInput').value = text;
+  enviarConsulta();
+}
+
+async function enviarConsulta() {
+  const proyId = document.getElementById('selectProyectoChat').value;
+  const input = document.getElementById('chatInput');
+  const pregunta = input.value.trim();
+  
+  if(!pregunta) return;
+  if(!proyId){alert('Selecciona un proyecto primero');return;}
+  if(!estado.configIA||!estado.configIA.api_key){
+    alert('Configura tu API Key primero');
+    abrirModal('modalConfig');return;
+  }
+  
+  const msgs = document.getElementById('chatMessages');
+  
+  // Mensaje usuario
+  msgs.innerHTML += `<div class="msg msg-user">${pregunta}</div>`;
+  input.value='';
+  
+  // Typing
+  const typingId = 'typing_'+Date.now();
+  msgs.innerHTML += `<div class="msg msg-typing" id="${typingId}"><div class="typing-dots"><span></span><span></span><span></span></div></div>`;
+  msgs.scrollTop = msgs.scrollHeight;
+  
+  try {
+    const res = await fetch(`${API}/api/consulta`,{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({
+        proyecto_id: parseInt(proyId),
+        pregunta: pregunta,
+        config_ia: {
+          provider: estado.configIA.provider,
+          api_key: estado.configIA.api_key,
+          model: estado.configIA.model||''
+        }
+      })
+    });
+    const data = await res.json();
+    
+    document.getElementById(typingId)?.remove();
+    
+    if(!res.ok) throw new Error(data.detail||'Error');
+    
+    msgs.innerHTML += `<div class="msg msg-ai">${data.respuesta.replace(/\n/g,'<br/>')}</div>`;
+    
+  } catch(e) {
+    document.getElementById(typingId)?.remove();
+    msgs.innerHTML += `<div class="msg msg-ai" style="border-left:3px solid var(--rojo)">❌ Error: ${e.message}</div>`;
+  }
+  
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   TABS
+═══════════════════════════════════════════════════════════════════════════ */
+function cambiarTab(e, tabId) {
+  const tabs = e.target.parentElement.querySelectorAll('.tab');
+  tabs.forEach(t=>t.classList.remove('active'));
+  e.target.classList.add('active');
+  document.querySelectorAll('.tab-content').forEach(c=>c.classList.add('hidden'));
+  document.getElementById(tabId).classList.remove('hidden');
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   INIT
+═══════════════════════════════════════════════════════════════════════════ */
+document.addEventListener('DOMContentLoaded', ()=>{
+  cargarEscenariosSimulacion();
+  sincronizarInputsNombresEscenario();
+  cargarConfigIA();
+  cargarDashboard();
+  
+  // Verificar servidor
+  fetch(`${API}/health`).then(r=>r.json()).then(d=>{
+    console.log('✅ Servidor conectado');
+  }).catch(e=>{
+    mostrarAlerta('alertArea','error','⚠️ Backend no disponible. Inicia el servidor con: <code>python3 -m uvicorn backend.main:app --host 0.0.0.0 --port 8000</code>');
+  });
+});
+</script>
+</body>
+</html>
