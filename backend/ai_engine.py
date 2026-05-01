@@ -34,6 +34,16 @@ def _auth_message(provider: str) -> str:
             "Crea una clave en https://aistudio.google.com/app/apikey (Google AI Studio), "
             "no uses la contraseña de cuenta: pégala en «Configurar IA»."
         )
+    if provider == "groq":
+        return (
+            "Groq respondió 401 (API key inválida o revocada). "
+            "Crea una clave gratuita en https://console.groq.com/keys y pégala en «Configurar IA»."
+        )
+    if provider == "ollama":
+        return (
+            "No se pudo autenticar con Ollama (401). "
+            "Comprueba que Ollama esté en ejecución (ollama serve) y la URL base (por defecto http://127.0.0.1:11434/v1)."
+        )
     return (
         "El proveedor de IA rechazó la autenticación (401). "
         "Actualiza la API key en «Configurar IA»."
@@ -55,6 +65,21 @@ class AIEngine:
                 api_key=api_key,
                 base_url=os.getenv("ZAI_BASE_URL", "https://api.z.ai/api/paas/v4")
             )
+        elif provider == "groq":
+            # Groq: plan gratuito con límites; API compatible con OpenAI.
+            self.model = model or "llama-3.3-70b-versatile"
+            self.client = openai.OpenAI(
+                api_key=api_key,
+                base_url=os.getenv("GROQ_BASE_URL", "https://api.groq.com/openai/v1"),
+            )
+        elif provider == "ollama":
+            # Ollama local (gratis); OpenAI-compatible en /v1
+            self.model = model or "llama3.2"
+            _key = (api_key or "").strip() or "ollama"
+            _base = (os.getenv("OLLAMA_BASE_URL") or "http://127.0.0.1:11434/v1").strip().rstrip("/")
+            if not _base.endswith("/v1"):
+                _base = _base.rstrip("/") + "/v1"
+            self.client = openai.OpenAI(api_key=_key, base_url=_base)
         elif provider == "anthropic":
             self.model = model or "claude-3-5-sonnet-20241022"
             self.client = anthropic.Anthropic(api_key=api_key)
@@ -72,7 +97,7 @@ class AIEngine:
         else:
             raise ValueError(
                 f"Proveedor de IA no soportado: {provider!r}. "
-                "Usa: openai, zai, anthropic o gemini."
+                "Usa: openai, zai, groq, ollama, anthropic o gemini."
             )
 
     def _call_gemini(self, prompt: str, max_tokens: int) -> str:
@@ -112,7 +137,7 @@ class AIEngine:
             if self.provider == "gemini":
                 return self._call_gemini(prompt, max_tokens)
 
-            if self.provider in {"openai", "zai"}:
+            if self.provider in {"openai", "zai", "groq", "ollama"}:
                 response = self.client.chat.completions.create(
                     model=self.model,
                     messages=[{"role": "user", "content": prompt}],

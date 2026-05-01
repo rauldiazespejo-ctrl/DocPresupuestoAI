@@ -14,7 +14,7 @@ from fastapi import FastAPI, File, UploadFile, Form, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 from sqlalchemy.orm import Session
 import openpyxl
 
@@ -158,8 +158,19 @@ def _carpeta_requisito(proyecto_id: int, categoria: str, nombre_requisito: str) 
 # ─── Modelos Pydantic ──────────────────────────────────────────────────────────
 class ConfigIA(BaseModel):
     provider: str = "openai"
-    api_key: str
+    api_key: str = ""  # vacío permitido solo con proveedor ollama (local)
     model: str = ""
+
+    @model_validator(mode="after")
+    def _api_key_requerida(self) -> "ConfigIA":
+        prov = (self.provider or "").strip()
+        if prov != "ollama" and not (self.api_key or "").strip():
+            raise ValueError(
+                "Se requiere API key para este proveedor. "
+                "Opciones gratuitas: Groq (console.groq.com), Gemini (Google AI Studio) "
+                "u Ollama en tu equipo (sin clave)."
+            )
+        return self
 
 class GenerarDocumentoRequest(BaseModel):
     proyecto_id: int
@@ -746,10 +757,16 @@ async def subir_documento(
     codigo_licitacion: str = Form(...),
     cliente: str = Form(default=""),
     provider: str = Form(default="openai"),
-    api_key: str = Form(...),
+    api_key: str = Form(default=""),
     model: str = Form(default=""),
     db: Session = Depends(get_db)
 ):
+    if (provider or "").strip() != "ollama" and not (api_key or "").strip():
+        raise HTTPException(
+            status_code=400,
+            detail="Falta API key. Usa Groq o Gemini (clave gratuita) o elige Ollama si tienes el modelo en tu PC.",
+        )
+
     codigo_normalizado = _normalizar_codigo_licitacion(codigo_licitacion)
     if not CODIGO_LICITACION_REGEX.match(codigo_normalizado):
         raise HTTPException(

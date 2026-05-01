@@ -385,15 +385,17 @@ tfoot td{padding:10px 14px;color:var(--blanco);font-weight:700;}
 <div class="modal-overlay" id="modalConfig">
   <div class="modal">
     <h3>⚙️ Configuración de IA</h3>
-    <p>Elige proveedor y pega tu API key. Para <strong>Gemini</strong>, crea la clave en <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer">Google AI Studio</a> (no basta con la suscripción de la app Gemini).</p>
+    <p><strong>Sin costo de API (con límites):</strong> <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer">Gemini</a> (Google AI Studio), <a href="https://console.groq.com/keys" target="_blank" rel="noopener noreferrer">Groq</a> o <strong>Ollama</strong> en tu Mac (modelo local). OpenAI / ZAI / Claude suelen ser de pago.</p>
     <div class="form-grid">
       <div class="form-group">
         <label>Proveedor</label>
-        <select id="cfgProvider" onchange="actualizarModelosPorProveedor()">
+        <select id="cfgProvider" onchange="actualizarModelosPorProveedor(); actualizarHintApiKey();">
+          <option value="gemini">✨ Google Gemini (gratis con cuota)</option>
+          <option value="groq">⚡ Groq (gratis con cuota)</option>
+          <option value="ollama">🦙 Ollama (local, sin costo API)</option>
           <option value="openai">🤖 OpenAI (GPT)</option>
           <option value="zai">⚡ ZAI (GLM)</option>
           <option value="anthropic">🧠 Anthropic (Claude)</option>
-          <option value="gemini">✨ Google Gemini</option>
         </select>
       </div>
       <div class="form-group">
@@ -406,7 +408,8 @@ tfoot td{padding:10px 14px;color:var(--blanco);font-weight:700;}
       </div>
       <div class="form-group full">
         <label>API Key</label>
-        <input type="password" id="cfgApiKey" placeholder="sk-… / AIza… (según proveedor)" autocomplete="off"/>
+        <input type="password" id="cfgApiKey" placeholder="Pega tu clave o déjala vacía con Ollama" autocomplete="off"/>
+        <p id="cfgApiKeyHint" class="text-muted" style="font-size:0.78rem;margin-top:6px;line-height:1.35;"></p>
       </div>
     </div>
     <div class="btn-group mt-4">
@@ -1181,6 +1184,36 @@ function guardarApiKeySesion(apiKey) {
   }
 }
 
+function configIaLista() {
+  if(!estado.configIA) return false;
+  if(estado.configIA.provider === 'ollama') return true;
+  return !!(estado.configIA.api_key && String(estado.configIA.api_key).trim());
+}
+
+function apiKeyParaBackend() {
+  if(!estado.configIA) return '';
+  if(estado.configIA.provider === 'ollama') {
+    const k = String(estado.configIA.api_key || '').trim();
+    return k || 'ollama';
+  }
+  return String(estado.configIA.api_key || '').trim();
+}
+
+function actualizarHintApiKey() {
+  const el = document.getElementById('cfgApiKeyHint');
+  if(!el) return;
+  const prov = document.getElementById('cfgProvider') && document.getElementById('cfgProvider').value;
+  if(prov === 'ollama') {
+    el.textContent = 'Ollama: deja la clave vacía si usas el servidor local por defecto. Instala un modelo con «ollama pull llama3.2» antes de analizar.';
+  } else if(prov === 'groq') {
+    el.textContent = 'Groq: clave gratuita en console.groq.com/keys (requiere cuenta).';
+  } else if(prov === 'gemini') {
+    el.textContent = 'Gemini: clave gratuita con cuota en Google AI Studio (enlace arriba).';
+  } else {
+    el.textContent = '';
+  }
+}
+
 function migrarConfigIAInsegura() {
   const cfg = obtenerConfigIALocal();
   if(!cfg || !cfg.api_key) return;
@@ -1285,7 +1318,7 @@ let estado = {
 };
 
 function pasosOnboarding() {
-  const iaOk = !!(estado.configIA && estado.configIA.api_key && String(estado.configIA.api_key).trim().length > 0);
+  const iaOk = configIaLista();
   const proyectosOk = (estado.proyectos || []).length > 0;
   return [
     {
@@ -1563,7 +1596,10 @@ async function apiFetch(path, options={}, meta={}) {
 /* ═══════════════════════════════════════════════════════════════════════════
    MODAL
 ═══════════════════════════════════════════════════════════════════════════ */
-function abrirModal(id) { document.getElementById(id).classList.add('show'); }
+function abrirModal(id) {
+  document.getElementById(id).classList.add('show');
+  if(id === 'modalConfig') actualizarHintApiKey();
+}
 function cerrarModal(id) { document.getElementById(id).classList.remove('show'); }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -1585,11 +1621,20 @@ function actualizarModelosPorProveedor() {
     [['gemini-2.0-flash','Gemini 2.0 Flash (Recomendado)'],['gemini-1.5-flash','Gemini 1.5 Flash (rápido)'],['gemini-1.5-pro','Gemini 1.5 Pro']].forEach(([v,l])=>{
       sel.innerHTML += `<option value="${v}">${l}</option>`;
     });
+  } else if (prov==='groq') {
+    [['llama-3.3-70b-versatile','Llama 3.3 70B (recomendado)'],['llama-3.1-8b-instant','Llama 3.1 8B (rápido)'],['mixtral-8x7b-32768','Mixtral 8x7B'],['gemma2-9b-it','Gemma2 9B'],['openai/gpt-oss-20b','GPT-OSS 20B']].forEach(([v,l])=>{
+      sel.innerHTML += `<option value="${v}">${l}</option>`;
+    });
+  } else if (prov==='ollama') {
+    [['llama3.2','llama3.2 (recomendado)'],['llama3.1:8b','llama3.1:8b'],['mistral','mistral'],['mixtral','mixtral']].forEach(([v,l])=>{
+      sel.innerHTML += `<option value="${v}">${l}</option>`;
+    });
   } else {
     [['claude-3-5-sonnet-20241022','Claude 3.5 Sonnet (Recomendado)'],['claude-3-haiku-20240307','Claude 3 Haiku (Rápido)'],['claude-3-opus-20240229','Claude 3 Opus']].forEach(([v,l])=>{
       sel.innerHTML += `<option value="${v}">${l}</option>`;
     });
   }
+  actualizarHintApiKey();
 }
 function guardarConfigIA() {
   const config = {
@@ -1597,7 +1642,13 @@ function guardarConfigIA() {
     api_key: document.getElementById('cfgApiKey').value,
     model: document.getElementById('cfgModel').value
   };
-  if(!config.api_key.trim()){alert('Ingresa tu API Key'); return;}
+  if(config.provider !== 'ollama' && !config.api_key.trim()){
+    alert('Ingresa tu API Key (o elige Ollama si tienes modelos en tu equipo)');
+    return;
+  }
+  if(config.provider === 'ollama' && !config.api_key.trim()) {
+    config.api_key = 'ollama';
+  }
   estado.configIA = config;
   guardarConfigIALocal(config);
   guardarApiKeySesion(config.api_key);
@@ -1623,26 +1674,33 @@ function cargarConfigIA() {
       prov === 'gemini' ? 'gemini-2.0-flash'
       : prov === 'zai' ? 'glm-4.5-air'
       : prov === 'anthropic' ? 'claude-3-5-sonnet-20241022'
+      : prov === 'groq' ? 'llama-3.3-70b-versatile'
+      : prov === 'ollama' ? 'llama3.2'
       : 'gpt-4o';
     let m = (estado.configIA.model || '').trim() || defMod;
     const ok =
       (prov === 'gemini' && m.startsWith('gemini-')) ||
       (prov === 'zai' && m.startsWith('glm-')) ||
       (prov === 'anthropic' && m.startsWith('claude-')) ||
+      (prov === 'groq' && (m.includes('llama') || m.includes('mixtral') || m.includes('gemma') || m.startsWith('openai/'))) ||
+      (prov === 'ollama' && m.length > 1 && !m.startsWith('gpt-') && !m.startsWith('claude-') && !m.startsWith('glm-') && !m.startsWith('gemini-')) ||
       (prov === 'openai' && (m.startsWith('gpt-') || m.startsWith('o1')));
     if (!ok) m = defMod;
     document.getElementById('cfgModel').value = m;
-    document.getElementById('cfgApiKey').value = estado.configIA.api_key || '';
+    document.getElementById('cfgApiKey').value = (estado.configIA.provider === 'ollama' && estado.configIA.api_key === 'ollama') ? '' : (estado.configIA.api_key || '');
+    actualizarHintApiKey();
     actualizarStatusIA();
     guardarConfigIALocal(estado.configIA);
     if(estado.configIA.api_key) guardarApiKeySesion(estado.configIA.api_key);
   }
 }
 function actualizarStatusIA() {
-  if(estado.configIA && estado.configIA.api_key) {
+  if(configIaLista()) {
     const prov = estado.configIA.provider==='openai'?'GPT'
       : estado.configIA.provider==='zai' ? 'ZAI'
       : estado.configIA.provider==='gemini' ? 'Gemini'
+      : estado.configIA.provider==='groq' ? 'Groq'
+      : estado.configIA.provider==='ollama' ? 'Ollama'
       : 'Claude';
     document.getElementById('sidebarIAStatus').textContent = `IA: ${prov} ✓`;
     document.getElementById('statIA').textContent = prov;
@@ -2148,8 +2206,8 @@ async function subirDocumento() {
     mostrarAlerta('alertNuevo','error','Formato inválido. Usa OT_XXXXXXXX_CLIENTE (ej: OT_25086007_POLPAICO)');
     return;
   }
-  if(!estado.configIA||!estado.configIA.api_key){
-    mostrarAlerta('alertNuevo','warning','Configura tu API Key primero');
+  if(!configIaLista()){
+    mostrarAlerta('alertNuevo','warning','Configura la IA (Groq o Gemini gratis, u Ollama local)');
     abrirModal('modalConfig');return;
   }
   
@@ -2161,7 +2219,7 @@ async function subirDocumento() {
   fd.append('codigo_licitacion', codigo);
   fd.append('cliente', cliente);
   fd.append('provider', estado.configIA.provider);
-  fd.append('api_key', estado.configIA.api_key);
+  fd.append('api_key', apiKeyParaBackend());
   fd.append('model', estado.configIA.model||'');
   
   document.getElementById('loaderText').textContent = '🤖 Analizando con IA...';
@@ -3368,8 +3426,8 @@ async function generarDocumento() {
   if(!proyId){mostrarAlerta('alertGenerar','error','Selecciona un proyecto');return;}
   if(!exigirAceptacionLegal('Debes aceptar términos legales antes de generar documentos.')) return;
   if(!estado.tipoDocSeleccionado){mostrarAlerta('alertGenerar','error','Selecciona el tipo de documento');return;}
-  if(!estado.configIA||!estado.configIA.api_key){
-    mostrarAlerta('alertGenerar','warning','Configura tu API Key primero');
+  if(!configIaLista()){
+    mostrarAlerta('alertGenerar','warning','Configura la IA (Groq o Gemini gratis, u Ollama local)');
     abrirModal('modalConfig');return;
   }
   
@@ -3386,7 +3444,7 @@ async function generarDocumento() {
         quality_mode: estado.qualityMode || 'standard',
         config_ia: {
           provider: estado.configIA.provider,
-          api_key: estado.configIA.api_key,
+          api_key: apiKeyParaBackend(),
           model: estado.configIA.model||''
         }
       })
@@ -3781,8 +3839,8 @@ async function enviarConsulta() {
   
   if(!pregunta) return;
   if(!proyId){alert('Selecciona un proyecto primero');return;}
-  if(!estado.configIA||!estado.configIA.api_key){
-    alert('Configura tu API Key primero');
+  if(!configIaLista()){
+    alert('Configura la IA (Groq o Gemini gratis, u Ollama local)');
     abrirModal('modalConfig');return;
   }
   
@@ -3806,7 +3864,7 @@ async function enviarConsulta() {
         pregunta: pregunta,
         config_ia: {
           provider: estado.configIA.provider,
-          api_key: estado.configIA.api_key,
+          api_key: apiKeyParaBackend(),
           model: estado.configIA.model||''
         }
       })
@@ -3846,6 +3904,7 @@ document.addEventListener('DOMContentLoaded', ()=>{
   cargarEscenariosSimulacion();
   sincronizarInputsNombresEscenario();
   cargarConfigIA();
+  actualizarHintApiKey();
   actualizarEstadoLegalUI();
   actualizarEstadoBackendUI();
   renderChecklistOnboarding();
