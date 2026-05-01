@@ -500,6 +500,7 @@ tfoot td{padding:10px 14px;color:var(--blanco);font-weight:700;}
     <!-- ══ DASHBOARD ══════════════════════════════════════════════════════════ -->
     <div class="page active" id="page-dashboard">
       <div id="alertArea"></div>
+      <div id="execDailyAlert"></div>
       <div class="card" id="onboardingChecklistCard">
         <div class="card-header">
           <div class="card-icon">🧭</div>
@@ -1594,6 +1595,48 @@ function renderTopAccionesCriticas(items=[]) {
   `).join('');
 }
 
+function claveAlertaEjecutivaHoy() {
+  const hoy = new Date().toISOString().slice(0, 10);
+  return `docpresupuesto_exec_daily_alert_${hoy}`;
+}
+
+function renderAlertaEjecutivaDiaria(items=[]) {
+  const box = document.getElementById('execDailyAlert');
+  if(!box) return;
+  const ahora = Date.now();
+  const vencidas = (items || []).filter(i => {
+    if(!i.fecha_compromiso) return false;
+    const t = new Date(i.fecha_compromiso).getTime();
+    return Number.isFinite(t) && t < ahora;
+  });
+  if(!vencidas.length) {
+    box.innerHTML = '';
+    return;
+  }
+  const dismissKey = claveAlertaEjecutivaHoy();
+  if(localStorage.getItem(dismissKey) === '1') {
+    box.innerHTML = '';
+    return;
+  }
+  const top = vencidas[0];
+  box.innerHTML = `
+    <div class="alert alert-warning" style="margin-bottom:12px;">
+      ⚠️ <b>Alerta ejecutiva diaria:</b> hay ${vencidas.length} acción(es) crítica(s) vencida(s).<br/>
+      Prioridad inmediata: <b>${top.titulo}</b> (${top.proyecto_nombre || ('Proyecto ' + top.proyecto_id)}).<br/>
+      <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;">
+        <button class="btn btn-primary btn-sm" onclick="irAGenerar(${top.proyecto_id})">Ir al proyecto afectado</button>
+        <button class="btn btn-secondary btn-sm" onclick="descartarAlertaEjecutivaDiaria()">Ocultar hoy</button>
+      </div>
+    </div>
+  `;
+}
+
+function descartarAlertaEjecutivaDiaria() {
+  localStorage.setItem(claveAlertaEjecutivaHoy(), '1');
+  const box = document.getElementById('execDailyAlert');
+  if(box) box.innerHTML = '';
+}
+
 /* ═══════════════════════════════════════════════════════════════════════════
    DASHBOARD
 ═══════════════════════════════════════════════════════════════════════════ */
@@ -1619,7 +1662,9 @@ async function cargarDashboard() {
     if(ekA) ekA.textContent = String(amarillos);
     if(ekV) ekV.textContent = String(verdes);
     if(ekP) ekP.textContent = `${aptosPct}%`;
-    renderTopAccionesCriticas((ejecutivo && ejecutivo.top_acciones_criticas) || []);
+    const topCriticas = (ejecutivo && ejecutivo.top_acciones_criticas) || [];
+    renderTopAccionesCriticas(topCriticas);
+    renderAlertaEjecutivaDiaria(topCriticas);
     
     // Lista sidebar
     const sb = document.getElementById('sidebarProjects');
