@@ -556,6 +556,12 @@ tfoot td{padding:10px 14px;color:var(--blanco);font-weight:700;}
           <div><h2>Centro de Cierre</h2><p>Plan operativo para destrabar preflight y habilitar entrega cliente</p></div>
         </div>
         <div id="cierreResumen" class="text-muted" style="font-size:0.82rem;margin-bottom:10px;">Selecciona un proyecto para ver acciones de cierre.</div>
+        <div class="exec-filter" id="cierreFiltroWrap" style="margin-bottom:10px;">
+          <span class="text-muted" style="font-size:0.78rem;align-self:center;margin-right:4px;">Vista:</span>
+          <button type="button" id="btnCierreFiltroTodos" class="btn btn-secondary btn-sm btn-filter-active" onclick="aplicarFiltroCierreLista('todos')">Todos</button>
+          <button type="button" id="btnCierreFiltroPendientes" class="btn btn-secondary btn-sm" onclick="aplicarFiltroCierreLista('pendientes')">Pendientes</button>
+          <button type="button" id="btnCierreFiltroVencidas" class="btn btn-secondary btn-sm" onclick="aplicarFiltroCierreLista('vencidas')">Vencidas</button>
+        </div>
         <div class="btn-group" style="margin-bottom:10px;">
           <button class="btn btn-secondary btn-sm" onclick="sincronizarCentroCierreDesdePreflight()">🔄 Sincronizar desde Preflight</button>
           <button class="btn btn-primary btn-sm" onclick="agregarAccionCierreManual()">➕ Nueva acción</button>
@@ -1261,7 +1267,7 @@ let estado = {
   backendLastCheck: '',
   onboardingOmitido: localStorage.getItem('docpresupuesto_onboarding_omitido') === '1',
   dashboardFilter: 'todos',
-  cierreFocusMode: null,
+  cierreListaFilter: 'todos',
   qualityMode: 'standard',
   tipoDocSeleccionado: null,
   escenariosSimulacion: [
@@ -1815,8 +1821,21 @@ function irACierreProyectoDesdeComite(proyectoId) {
   if(!id) return;
   const proyecto = (estado.proyectos || []).find(p => Number(p.id) === id);
   estado.proyectoActual = proyecto || { id };
-  estado.cierreFocusMode = 'vencidas';
+  estado.cierreListaFilter = 'vencidas';
   abrirCentroCierre();
+}
+
+function aplicarFiltroCierreLista(modo) {
+  const m = String(modo || 'todos').toLowerCase();
+  estado.cierreListaFilter = (m === 'pendientes' || m === 'vencidas') ? m : 'todos';
+  const bTodos = document.getElementById('btnCierreFiltroTodos');
+  const bPen = document.getElementById('btnCierreFiltroPendientes');
+  const bVen = document.getElementById('btnCierreFiltroVencidas');
+  [bTodos, bPen, bVen].forEach(b => b && b.classList.remove('btn-filter-active'));
+  if(estado.cierreListaFilter === 'pendientes' && bPen) bPen.classList.add('btn-filter-active');
+  else if(estado.cierreListaFilter === 'vencidas' && bVen) bVen.classList.add('btn-filter-active');
+  else if(bTodos) bTodos.classList.add('btn-filter-active');
+  cargarCentroCierreProyectoActual();
 }
 
 async function cargarVistaComite() {
@@ -3502,29 +3521,49 @@ async function cargarCentroCierreProyectoActual() {
     list.innerHTML = '';
     return;
   }
+  const syncFiltroBtns = () => {
+    const m = estado.cierreListaFilter || 'todos';
+    const bTodos = document.getElementById('btnCierreFiltroTodos');
+    const bPen = document.getElementById('btnCierreFiltroPendientes');
+    const bVen = document.getElementById('btnCierreFiltroVencidas');
+    [bTodos, bPen, bVen].forEach(b => b && b.classList.remove('btn-filter-active'));
+    if(m === 'pendientes' && bPen) bPen.classList.add('btn-filter-active');
+    else if(m === 'vencidas' && bVen) bVen.classList.add('btn-filter-active');
+    else if(bTodos) bTodos.classList.add('btn-filter-active');
+  };
   try {
     const data = await apiFetch(`/api/proyectos/${proyectoId}/plan-cierre`, {}, { context: 'Centro de cierre' });
-    let items = data.items || [];
-    const nowTs = Date.now();
+    const itemsAll = data.items || [];
     const isVencida = (it) => {
       if(!it || !it.fecha_compromiso) return false;
       if(String(it.estado || '').toLowerCase() === 'resuelto') return false;
       const t = new Date(it.fecha_compromiso).getTime();
-      return Number.isFinite(t) && t < nowTs;
+      return Number.isFinite(t) && t < Date.now();
     };
-    if(estado.cierreFocusMode === 'vencidas') {
-      items = items.slice().sort((a, b) => {
-        const av = isVencida(a) ? 1 : 0;
-        const bv = isVencida(b) ? 1 : 0;
-        if(av !== bv) return bv - av;
-        return 0;
+    const esPendiente = (it) => String(it.estado || '').toLowerCase() !== 'resuelto';
+    const nPend = itemsAll.filter(esPendiente).length;
+    const nVenc = itemsAll.filter(isVencida).length;
+    const modo = estado.cierreListaFilter || 'todos';
+    let items = itemsAll.slice();
+    if(modo === 'pendientes') items = itemsAll.filter(esPendiente);
+    if(modo === 'vencidas') {
+      items = itemsAll.filter(isVencida).sort((a, b) => {
+        const ta = new Date(a.fecha_compromiso || 0).getTime();
+        const tb = new Date(b.fecha_compromiso || 0).getTime();
+        return ta - tb;
       });
     }
-    const pendientes = items.filter(i => i.estado !== 'resuelto').length;
-    const vencidas = items.filter(isVencida).length;
-    resumen.innerHTML = `Proyecto ${proyectoId} · ${items.length} acciones (${pendientes} pendientes, ${vencidas} vencidas)${estado.cierreFocusMode === 'vencidas' ? ' · foco: vencidas primero' : ''}`;
-    if(items.length === 0) {
+    const labelVista = modo === 'pendientes' ? 'pendientes' : (modo === 'vencidas' ? 'vencidas' : 'todas');
+    const mostrando = items.length;
+    const total = itemsAll.length;
+    resumen.innerHTML = `Proyecto ${proyectoId} · ${total} acción(es) en cartera (${nPend} pendientes, ${nVenc} vencidas) · vista: <b>${labelVista}</b>${mostrando !== total ? ` · mostrando ${mostrando}` : ''}`;
+    syncFiltroBtns();
+    if(itemsAll.length === 0) {
       list.innerHTML = '<div class="text-muted" style="padding:8px 0;">Sin acciones aún. Sincroniza desde preflight para generar plan automático.</div>';
+      return;
+    }
+    if(items.length === 0) {
+      list.innerHTML = '<div class="text-muted" style="padding:8px 0;">Nada que mostrar con este filtro. Prueba <b>Todos</b> o <b>Pendientes</b>.</div>';
       return;
     }
     list.innerHTML = items.map(i => `
@@ -3545,9 +3584,7 @@ async function cargarCentroCierreProyectoActual() {
         </div>
       </div>
     `).join('');
-    estado.cierreFocusMode = null;
   } catch (e) {
-    estado.cierreFocusMode = null;
     resumen.textContent = 'No se pudo cargar el centro de cierre.';
     list.innerHTML = '';
   }
