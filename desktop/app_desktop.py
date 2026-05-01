@@ -9,6 +9,7 @@ using pywebview. Intended for pilot testing on desktop.
 from __future__ import annotations
 
 import atexit
+import fcntl
 import os
 import signal
 import subprocess
@@ -38,6 +39,8 @@ def _project_root() -> Path:
 ROOT = _project_root()
 FRONTEND_FILE = ROOT / "frontend" / "index.html"
 _backend_process: subprocess.Popen | None = None
+_instance_lock_handle = None
+LOCK_FILE_PATH = Path("/tmp/docpresupuestoai.lock")
 
 
 def _wait_backend_ready(timeout_seconds: int = 30) -> bool:
@@ -86,8 +89,29 @@ def _handle_exit_signal(signum, _frame) -> None:
     raise SystemExit(0 if signum in (signal.SIGINT, signal.SIGTERM) else 1)
 
 
+def _acquire_single_instance_lock() -> bool:
+    """
+    Prevent multiple desktop windows from launching at once.
+    This avoids accidental mass openings after install or double-click bursts.
+    """
+    global _instance_lock_handle
+    LOCK_FILE_PATH.parent.mkdir(parents=True, exist_ok=True)
+    _instance_lock_handle = open(LOCK_FILE_PATH, "w")
+    try:
+        fcntl.flock(_instance_lock_handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        _instance_lock_handle.write(str(os.getpid()))
+        _instance_lock_handle.flush()
+        return True
+    except BlockingIOError:
+        return False
+
+
 def main() -> int:
     global _backend_process
+
+    if not _acquire_single_instance_lock():
+        print("DocPresupuestoAI ya está en ejecución. Se evita abrir otra instancia.")
+        return 0
 
     if not FRONTEND_FILE.exists():
         print(f"Frontend no encontrado: {FRONTEND_FILE}")

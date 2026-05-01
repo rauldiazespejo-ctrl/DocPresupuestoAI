@@ -23,15 +23,24 @@
   --radio: 12px;
   --radio-s: 8px;
   --trans: all 0.25s ease;
+  --bg-grad-1: #071625;
+  --bg-grad-2: #0f2b46;
+  --bg-grad-3: #123b5e;
 }
 *{box-sizing:border-box;margin:0;padding:0;}
-body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--gris);color:var(--texto);min-height:100vh;display:flex;flex-direction:column;}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:radial-gradient(circle at top left,var(--bg-grad-3),var(--bg-grad-2) 45%,var(--bg-grad-1));color:var(--texto);min-height:100vh;display:flex;flex-direction:column;position:relative;overflow-x:hidden;}
+
+.bg-orb{position:fixed;border-radius:999px;filter:blur(8px);pointer-events:none;opacity:0.32;z-index:0;}
+.bg-orb.orb-1{width:380px;height:380px;top:-130px;right:-80px;background:#4db6d8;animation:floatOrb 12s ease-in-out infinite;}
+.bg-orb.orb-2{width:320px;height:320px;bottom:8%;left:-100px;background:#2e7d9b;animation:floatOrb 15s ease-in-out infinite reverse;}
+.bg-orb.orb-3{width:260px;height:260px;bottom:-120px;right:30%;background:#f5a623;opacity:0.24;animation:floatOrb 18s ease-in-out infinite;}
+@keyframes floatOrb{0%,100%{transform:translateY(0) translateX(0);}50%{transform:translateY(-18px) translateX(10px);}}
 
 /* ═══════════════════════════════════════════════════
    LAYOUT PRINCIPAL
 ═══════════════════════════════════════════════════ */
-.app-wrapper{display:flex;min-height:100vh;}
-.sidebar{width:280px;background:var(--azul);color:var(--blanco);display:flex;flex-direction:column;position:fixed;top:0;left:0;height:100vh;z-index:100;overflow-y:auto;}
+.app-wrapper{display:flex;min-height:100vh;position:relative;z-index:2;}
+.sidebar{width:280px;background:linear-gradient(170deg,rgba(26,60,94,0.92),rgba(13,33,52,0.94));backdrop-filter:blur(12px);color:var(--blanco);display:flex;flex-direction:column;position:fixed;top:0;left:0;height:100vh;z-index:100;overflow-y:auto;border-right:1px solid rgba(255,255,255,0.08);}
 .main-content{margin-left:280px;flex:1;display:flex;flex-direction:column;min-height:100vh;}
 
 /* ═══════════════════════════════════════════════════
@@ -44,8 +53,8 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--gris);color:va
 
 .sidebar-section{padding:20px 16px 8px;font-size:0.68rem;text-transform:uppercase;letter-spacing:1.5px;color:rgba(255,255,255,0.4);}
 .nav-item{display:flex;align-items:center;gap:12px;padding:11px 20px;cursor:pointer;border-radius:0;transition:var(--trans);font-size:0.9rem;color:rgba(255,255,255,0.8);border-left:3px solid transparent;text-decoration:none;}
-.nav-item:hover{background:rgba(255,255,255,0.08);color:var(--blanco);}
-.nav-item.active{background:rgba(77,182,216,0.2);color:var(--azul-c);border-left-color:var(--azul-c);}
+.nav-item:hover{background:rgba(255,255,255,0.12);color:var(--blanco);}
+.nav-item.active{background:linear-gradient(90deg,rgba(77,182,216,0.24),rgba(77,182,216,0.12));color:#9ddcf0;border-left-color:var(--azul-c);box-shadow:inset 0 0 28px rgba(77,182,216,0.15);}
 .nav-item .icon{font-size:1.1rem;width:20px;text-align:center;}
 
 .sidebar-projects{padding:8px 0;flex:1;overflow-y:auto;}
@@ -62,7 +71,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--gris);color:va
 /* ═══════════════════════════════════════════════════
    TOP BAR
 ═══════════════════════════════════════════════════ */
-.topbar{background:var(--blanco);padding:16px 32px;display:flex;align-items:center;justify-content:space-between;box-shadow:0 2px 8px rgba(0,0,0,0.06);position:sticky;top:0;z-index:50;}
+.topbar{background:rgba(255,255,255,0.88);backdrop-filter:blur(10px);padding:16px 32px;display:flex;align-items:center;justify-content:space-between;box-shadow:0 2px 14px rgba(0,0,0,0.08);position:sticky;top:0;z-index:50;border-bottom:1px solid rgba(26,60,94,0.08);}
 .topbar-title{font-size:1.15rem;font-weight:700;color:var(--azul);}
 .topbar-actions{display:flex;gap:10px;}
 
@@ -75,7 +84,8 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--gris);color:va
 /* ═══════════════════════════════════════════════════
    CARDS
 ═══════════════════════════════════════════════════ */
-.card{background:var(--blanco);border-radius:var(--radio);box-shadow:var(--sombra);padding:28px;margin-bottom:24px;}
+.card{background:rgba(255,255,255,0.95);border-radius:var(--radio);box-shadow:var(--sombra);padding:28px;margin-bottom:24px;border:1px solid rgba(255,255,255,0.7);transition:transform 0.25s ease, box-shadow 0.25s ease;}
+.card:hover{transform:translateY(-1px);box-shadow:0 10px 30px rgba(26,60,94,0.14);}
 .card-header{display:flex;align-items:center;gap:12px;margin-bottom:20px;}
 .card-header .card-icon{width:42px;height:42px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:1.3rem;background:linear-gradient(135deg,var(--azul),var(--azul-m));}
 .card-header h2{font-size:1.1rem;font-weight:700;color:var(--azul);}
@@ -112,11 +122,11 @@ textarea{resize:vertical;min-height:80px;}
 ═══════════════════════════════════════════════════ */
 .btn{display:inline-flex;align-items:center;gap:8px;padding:10px 20px;border-radius:var(--radio-s);font-size:0.88rem;font-weight:600;cursor:pointer;border:none;transition:var(--trans);text-decoration:none;font-family:inherit;}
 .btn-primary{background:linear-gradient(135deg,var(--azul),var(--azul-m));color:var(--blanco);}
-.btn-primary:hover{transform:translateY(-1px);box-shadow:0 6px 20px rgba(26,60,94,0.3);}
+.btn-primary:hover{transform:translateY(-1px) scale(1.01);box-shadow:0 6px 20px rgba(26,60,94,0.3);}
 .btn-secondary{background:var(--gris);color:var(--azul);border:1.5px solid var(--gris-m);}
 .btn-secondary:hover{background:var(--gris-m);}
 .btn-success{background:linear-gradient(135deg,#27ae60,#2ecc71);color:var(--blanco);}
-.btn-success:hover{transform:translateY(-1px);box-shadow:0 6px 20px rgba(39,174,96,0.3);}
+.btn-success:hover{transform:translateY(-1px) scale(1.01);box-shadow:0 6px 20px rgba(39,174,96,0.3);}
 .btn-danger{background:linear-gradient(135deg,var(--rojo),#e57373);color:var(--blanco);}
 .btn-dorado{background:linear-gradient(135deg,var(--dorado),#f8c558);color:var(--azul);}
 .btn-sm{padding:7px 14px;font-size:0.8rem;}
@@ -231,6 +241,12 @@ tfoot td{padding:10px 14px;color:var(--blanco);font-weight:700;}
 .modal{background:var(--blanco);border-radius:var(--radio);padding:32px;width:90%;max-width:520px;box-shadow:0 20px 60px rgba(0,0,0,0.2);}
 .modal h3{font-size:1.15rem;color:var(--azul);margin-bottom:6px;}
 .modal p{font-size:0.85rem;color:#888;margin-bottom:20px;}
+.legal-scroll{max-height:230px;overflow:auto;background:var(--gris);border:1px solid var(--gris-m);border-radius:var(--radio-s);padding:12px 14px;font-size:0.8rem;line-height:1.5;color:#324;}
+.legal-consent{display:flex;gap:10px;align-items:flex-start;margin-top:12px;padding:10px;background:rgba(245,166,35,0.1);border:1px solid rgba(245,166,35,0.4);border-radius:var(--radio-s);}
+.legal-consent input{margin-top:3px;}
+.legal-badge{padding:5px 10px;border-radius:20px;font-size:0.72rem;font-weight:700;}
+.legal-ok{background:#d5f4e6;color:#1a5c35;}
+.legal-pending{background:#fde9e9;color:#8f2020;}
 
 /* ═══════════════════════════════════════════════════
    LOADER OVERLAY
@@ -293,6 +309,10 @@ tfoot td{padding:10px 14px;color:var(--blanco);font-weight:700;}
 </head>
 <body>
 
+<div class="bg-orb orb-1"></div>
+<div class="bg-orb orb-2"></div>
+<div class="bg-orb orb-3"></div>
+
 <!-- LOADER -->
 <div class="loader-overlay" id="loaderOverlay">
   <div class="spinner"></div>
@@ -330,6 +350,32 @@ tfoot td{padding:10px 14px;color:var(--blanco);font-weight:700;}
     <div class="btn-group mt-4">
       <button class="btn btn-primary" onclick="guardarConfigIA()">✅ Guardar configuración</button>
       <button class="btn btn-secondary" onclick="cerrarModal('modalConfig')">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL TERMINOS LEGALES -->
+<div class="modal-overlay" id="modalLegal">
+  <div class="modal">
+    <h3>📜 Términos legales y privacidad</h3>
+    <p>Para continuar debes aceptar los términos de uso, tratamiento de datos y condiciones de operación de DocPresupuestoAI.</p>
+    <div class="legal-scroll">
+      <strong>Resumen legal:</strong><br/>
+      1. Esta plataforma asiste en análisis documental y generación de propuestas, pero la revisión final es responsabilidad del usuario.<br/>
+      2. No ingreses información sensible sin autorización de tu organización y del mandante.<br/>
+      3. Las claves API y datos de licitación deben manejarse de acuerdo con tus políticas internas.<br/>
+      4. Pulso AI no se responsabiliza por decisiones comerciales tomadas sin validación humana.<br/>
+      5. El uso del sistema implica aceptar estas condiciones y sus futuras actualizaciones.
+    </div>
+    <div class="legal-consent">
+      <input type="checkbox" id="legalAcceptCheck"/>
+      <label for="legalAcceptCheck" style="margin:0;font-size:0.82rem;color:var(--texto);">
+        Confirmo que leí y acepto los términos legales y de privacidad para usar la plataforma.
+      </label>
+    </div>
+    <div class="btn-group mt-4">
+      <button class="btn btn-primary" onclick="aceptarTerminos()">✅ Aceptar y continuar</button>
+      <button class="btn btn-secondary" onclick="rechazarTerminos()">Salir</button>
     </div>
   </div>
 </div>
@@ -385,6 +431,8 @@ tfoot td{padding:10px 14px;color:var(--blanco);font-weight:700;}
     <div class="topbar">
       <div class="topbar-title" id="topbarTitle">📊 Dashboard</div>
       <div class="topbar-actions">
+        <span id="legalStatusBadge" class="legal-badge legal-pending">Legal pendiente</span>
+        <button class="btn btn-secondary btn-sm" onclick="abrirModal('modalLegal')">📜 Términos</button>
         <button class="btn btn-secondary btn-sm" onclick="abrirModal('modalConfig')">⚙️ Configurar IA</button>
         <button class="btn btn-primary btn-sm" onclick="navegar('nuevo')">➕ Nuevo Proyecto</button>
       </div>
@@ -474,6 +522,15 @@ tfoot td{padding:10px 14px;color:var(--blanco);font-weight:700;}
           <div class="form-group">
             <label>Cliente / Mandante</label>
             <input type="text" id="inputCliente" placeholder="Nombre del cliente"/>
+          </div>
+          <div class="form-group full">
+            <div class="legal-consent">
+              <input type="checkbox" id="legalAceptadoNuevoProyecto"/>
+              <label for="legalAceptadoNuevoProyecto" style="margin:0;font-size:0.8rem;color:var(--texto);">
+                Acepto términos legales para procesar documentación. Puedes revisarlos en
+                <a href="#" onclick="event.preventDefault();abrirModal('modalLegal')" style="font-weight:700;color:var(--azul);">este enlace</a>.
+              </label>
+            </div>
           </div>
         </div>
         
@@ -902,6 +959,7 @@ let estado = {
   proyectos: [],
   proyectoActual: null,
   configIA: JSON.parse(localStorage.getItem('docpresupuesto_ia') || 'null') || LOCAL_IA_CONFIG,
+  legalAceptado: localStorage.getItem('docpresupuesto_legal_v1') === 'accepted',
   tipoDocSeleccionado: null,
   escenariosSimulacion: [
     { nombre: 'Escenario 1', factores: {} },
@@ -909,6 +967,50 @@ let estado = {
     { nombre: 'Escenario 3', factores: {} }
   ],
 };
+
+function actualizarEstadoLegalUI() {
+  const badge = document.getElementById('legalStatusBadge');
+  if(!badge) return;
+  if(estado.legalAceptado) {
+    badge.textContent = 'Legal aceptado';
+    badge.classList.remove('legal-pending');
+    badge.classList.add('legal-ok');
+  } else {
+    badge.textContent = 'Legal pendiente';
+    badge.classList.add('legal-pending');
+    badge.classList.remove('legal-ok');
+  }
+}
+
+function exigirAceptacionLegal(mensaje='Debes aceptar términos legales para continuar.') {
+  if(estado.legalAceptado) return true;
+  mostrarAlerta('alertArea', 'warning', mensaje);
+  abrirModal('modalLegal');
+  return false;
+}
+
+function aceptarTerminos() {
+  const chk = document.getElementById('legalAcceptCheck');
+  if(!chk || !chk.checked) {
+    alert('Debes marcar la aceptación para continuar.');
+    return;
+  }
+  estado.legalAceptado = true;
+  localStorage.setItem('docpresupuesto_legal_v1', 'accepted');
+  const chkNuevo = document.getElementById('legalAceptadoNuevoProyecto');
+  if(chkNuevo) chkNuevo.checked = true;
+  cerrarModal('modalLegal');
+  actualizarEstadoLegalUI();
+  mostrarAlerta('alertArea', 'success', 'Términos legales aceptados correctamente.');
+}
+
+function rechazarTerminos() {
+  estado.legalAceptado = false;
+  localStorage.removeItem('docpresupuesto_legal_v1');
+  actualizarEstadoLegalUI();
+  alert('Necesitas aceptar los términos para operar funcionalidades críticas.');
+  cerrarModal('modalLegal');
+}
 
 /* ═══════════════════════════════════════════════════════════════════════════
    NAVEGACIÓN
@@ -1180,6 +1282,12 @@ async function subirDocumento() {
   const codigoRegex = /^OT_[0-9]{8}_[A-Z0-9]+(?:_[A-Z0-9]+)*$/;
   
   if(!archivoSeleccionado){mostrarAlerta('alertNuevo','error','Selecciona un documento primero');return;}
+  if(!exigirAceptacionLegal('Debes aceptar términos legales antes de analizar documentos.')) return;
+  const checkNuevo = document.getElementById('legalAceptadoNuevoProyecto');
+  if(checkNuevo && !checkNuevo.checked){
+    mostrarAlerta('alertNuevo','warning','Confirma la aceptación legal del proyecto para continuar.');
+    return;
+  }
   if(!nombre){mostrarAlerta('alertNuevo','error','Ingresa el nombre del proyecto');return;}
   if(!codigo){mostrarAlerta('alertNuevo','error','Ingresa el código OT / Licitación');return;}
   if(!codigoRegex.test(codigo)){
@@ -2319,6 +2427,7 @@ function seleccionarDocTipo(tipo, el) {
 async function generarDocumento() {
   const proyId = document.getElementById('selectProyectoGenerar').value;
   if(!proyId){mostrarAlerta('alertGenerar','error','Selecciona un proyecto');return;}
+  if(!exigirAceptacionLegal('Debes aceptar términos legales antes de generar documentos.')) return;
   if(!estado.tipoDocSeleccionado){mostrarAlerta('alertGenerar','error','Selecciona el tipo de documento');return;}
   if(!estado.configIA||!estado.configIA.api_key){
     mostrarAlerta('alertGenerar','warning','Configura tu API Key primero');
@@ -2460,6 +2569,8 @@ document.addEventListener('DOMContentLoaded', ()=>{
   cargarEscenariosSimulacion();
   sincronizarInputsNombresEscenario();
   cargarConfigIA();
+  actualizarEstadoLegalUI();
+  if(!estado.legalAceptado) abrirModal('modalLegal');
   cargarDashboard();
   
   // Verificar servidor
