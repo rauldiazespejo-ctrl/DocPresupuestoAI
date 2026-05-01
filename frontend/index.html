@@ -385,7 +385,7 @@ tfoot td{padding:10px 14px;color:var(--blanco);font-weight:700;}
 <div class="modal-overlay" id="modalConfig">
   <div class="modal">
     <h3>⚙️ Configuración de IA</h3>
-    <p>Conecta tu proveedor de IA preferido para generar documentos inteligentes.</p>
+    <p>Elige proveedor y pega tu API key. Para <strong>Gemini</strong>, crea la clave en <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer">Google AI Studio</a> (no basta con la suscripción de la app Gemini).</p>
     <div class="form-grid">
       <div class="form-group">
         <label>Proveedor</label>
@@ -1612,8 +1612,20 @@ function cargarConfigIA() {
     };
     document.getElementById('cfgProvider').value = estado.configIA.provider || 'openai';
     actualizarModelosPorProveedor();
-    const defMod = (estado.configIA.provider === 'gemini') ? 'gemini-2.0-flash' : 'gpt-4o';
-    document.getElementById('cfgModel').value = estado.configIA.model || defMod;
+    const prov = estado.configIA.provider || 'openai';
+    const defMod =
+      prov === 'gemini' ? 'gemini-2.0-flash'
+      : prov === 'zai' ? 'glm-4.5-air'
+      : prov === 'anthropic' ? 'claude-3-5-sonnet-20241022'
+      : 'gpt-4o';
+    let m = (estado.configIA.model || '').trim() || defMod;
+    const ok =
+      (prov === 'gemini' && m.startsWith('gemini-')) ||
+      (prov === 'zai' && m.startsWith('glm-')) ||
+      (prov === 'anthropic' && m.startsWith('claude-')) ||
+      (prov === 'openai' && (m.startsWith('gpt-') || m.startsWith('o1')));
+    if (!ok) m = defMod;
+    document.getElementById('cfgModel').value = m;
     document.getElementById('cfgApiKey').value = estado.configIA.api_key || '';
     actualizarStatusIA();
     guardarConfigIALocal(estado.configIA);
