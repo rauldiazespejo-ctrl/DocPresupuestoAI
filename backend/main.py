@@ -306,6 +306,92 @@ async def eliminar_proyecto(proyecto_id: int, db: Session = Depends(get_db)):
     db.commit()
     return {"message": "Proyecto eliminado"}
 
+
+@app.post("/api/demo/reset")
+async def reset_demo_data(db: Session = Depends(get_db)):
+    """
+    Local-first helper: clears operational data for clean demos.
+    """
+    db.query(Documento).delete()
+    db.query(ItemPresupuesto).delete()
+    db.query(EvidenciaRequisito).delete()
+    db.query(RequisitoDocumental).delete()
+    db.query(PrediccionAdjudicacion).delete()
+    db.query(OfertaLicitacion).delete()
+    db.query(HistoricoLicitacion).delete()
+    db.query(Proyecto).delete()
+    db.commit()
+    return {"message": "Datos demo reiniciados"}
+
+
+@app.post("/api/demo/seed")
+async def seed_demo_data(db: Session = Depends(get_db)):
+    """
+    Creates a representative local demo project with extracted-like data.
+    """
+    demo_codigo = "OT_26050101_DEMO_PULSO"
+    existente = db.query(Proyecto).filter(Proyecto.codigo_licitacion == demo_codigo).first()
+    if existente:
+        return {
+            "message": "Proyecto demo ya existente",
+            "proyecto_id": existente.id,
+            "codigo_licitacion": existente.codigo_licitacion or "",
+        }
+
+    datos_demo = {
+        "proyecto": {
+            "nombre": "Mantenimiento Integral Planta Norte",
+            "mandante": "Industrial Demo S.A.",
+            "moneda": "CLP",
+            "modalidad": "Suma alzada",
+            "plazo_ejecucion": "90 días",
+            "ubicacion": "Santiago",
+            "fecha_inicio": "2026-06-01",
+            "fecha_termino": "2026-08-30",
+            "descripcion": "Servicio integral de mantenimiento electromecánico y apoyo HSE.",
+        },
+        "requisitos_tecnicos": [
+            "Plan de trabajo semanal",
+            "Experiencia comprobable en mantenimiento industrial",
+            "Cuadrilla certificada en trabajos críticos",
+        ],
+        "documentos_requeridos": [
+            "Boleta de garantía de seriedad",
+            "Certificado de cumplimiento previsional",
+            "Declaración de seguridad y salud ocupacional",
+        ],
+        "partidas_presupuesto": [
+            {"numero": "1", "descripcion": "Movilización y habilitación", "unidad": "gl", "cantidad": 1, "precio_unitario": 1850000},
+            {"numero": "2", "descripcion": "Mano de obra especializada", "unidad": "hh", "cantidad": 540, "precio_unitario": 27500},
+            {"numero": "3", "descripcion": "Materiales y consumibles", "unidad": "gl", "cantidad": 1, "precio_unitario": 4200000},
+            {"numero": "4", "descripcion": "Supervisión y control de calidad", "unidad": "mes", "cantidad": 3, "precio_unitario": 1350000},
+        ],
+        "fechas_clave": {
+            "Visita a terreno": "2026-05-10",
+            "Consultas": "2026-05-12",
+            "Cierre ofertas": "2026-05-20",
+        },
+    }
+
+    proyecto_demo = Proyecto(
+        nombre="Proyecto Demo - Mantenimiento Planta",
+        codigo_licitacion=demo_codigo,
+        cliente="Industrial Demo S.A.",
+        descripcion=datos_demo["proyecto"]["descripcion"],
+        archivo_base="DEMO_LOCAL",
+        datos_extraidos=datos_demo,
+        estado="activo",
+    )
+    db.add(proyecto_demo)
+    db.commit()
+    db.refresh(proyecto_demo)
+
+    return {
+        "message": "Proyecto demo creado",
+        "proyecto_id": proyecto_demo.id,
+        "codigo_licitacion": proyecto_demo.codigo_licitacion or "",
+    }
+
 # ─── SUBIR DOCUMENTO BASE ─────────────────────────────────────────────────────
 @app.post("/api/subir-documento")
 async def subir_documento(

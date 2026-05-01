@@ -159,3 +159,39 @@ El índice documental exportado incluye formato tipo dossier:
 - Detalle completo de requisitos y evidencias
 
 ## Desarrollado por Pulso AI
+
+---
+
+## Operación local (playbook)
+
+### Diagnóstico rápido
+```bash
+./diagnostico.sh
+```
+
+Este comando valida:
+- dependencias clave Python,
+- estado de backend en `/health`,
+- archivos críticos,
+- estado git y rutas de logs.
+
+### Limpieza segura de artefactos
+```bash
+./cleanup.sh --dry-run   # vista previa
+./cleanup.sh             # limpieza real
+```
+
+`cleanup.sh` elimina artefactos ignorados (build/cache/temp) y preserva `frontend/local-config.js`.
+
+### Logs de escritorio (macOS)
+- Launcher desktop: `~/Library/Logs/DocPresupuestoAI/desktop-launcher.log`
+- Backend local: `~/Library/Logs/DocPresupuestoAI/backend.log`
+
+### Modo demo local
+Desde la interfaz (topbar):
+- `🧪 Cargar demo`: crea un proyecto demo listo para mostrar.
+- `♻️ Reset demo`: limpia datos operativos locales para volver a un estado limpio.
+
+También disponibles por API:
+- `POST /api/demo/seed`
+- `POST /api/demo/reset`

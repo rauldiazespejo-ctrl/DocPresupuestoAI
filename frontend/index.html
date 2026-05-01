@@ -471,6 +471,8 @@ tfoot td{padding:10px 14px;color:var(--blanco);font-weight:700;}
         <span id="backendStatusBadge" class="op-badge op-checking">Backend verificando...</span>
         <span id="legalStatusBadge" class="legal-badge legal-pending">Legal pendiente</span>
         <button class="btn btn-secondary btn-sm" onclick="abrirOnboarding()">🧭 Onboarding</button>
+        <button class="btn btn-secondary btn-sm" onclick="cargarDemoLocal()">🧪 Cargar demo</button>
+        <button class="btn btn-secondary btn-sm" onclick="reiniciarDemoLocal()">♻️ Reset demo</button>
         <button class="btn btn-secondary btn-sm" onclick="abrirModal('modalLegal')">📜 Términos</button>
         <button class="btn btn-secondary btn-sm" onclick="abrirModal('modalConfig')">⚙️ Configurar IA</button>
         <button class="btn btn-primary btn-sm" onclick="navegar('nuevo')">➕ Nuevo Proyecto</button>
@@ -1348,6 +1350,30 @@ function mostrarAlerta(contenedorId, tipo, mensaje) {
   setTimeout(()=>{ if(el) el.innerHTML=''; }, 6000);
 }
 
+async function apiFetch(path, options={}, meta={}) {
+  const timeoutMs = meta.timeoutMs || 20000;
+  const context = meta.context || 'operación';
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(`${API}${path}`, { ...options, signal: controller.signal });
+    const ct = res.headers.get('content-type') || '';
+    const data = ct.includes('application/json') ? await res.json() : null;
+    if(!res.ok) {
+      const detalle = (data && (data.detail || data.message)) || `Error HTTP ${res.status}`;
+      throw new Error(`${context}: ${detalle}`);
+    }
+    return data;
+  } catch (e) {
+    if(e.name === 'AbortError') {
+      throw new Error(`${context}: tiempo de espera agotado`);
+    }
+    throw e;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 /* ═══════════════════════════════════════════════════════════════════════════
    MODAL
 ═══════════════════════════════════════════════════════════════════════════ */
@@ -1427,8 +1453,7 @@ function actualizarStatusIA() {
 ═══════════════════════════════════════════════════════════════════════════ */
 async function cargarDashboard() {
   try {
-    const res = await fetch(`${API}/api/proyectos`);
-    const proyectos = await res.json();
+    const proyectos = await apiFetch('/api/proyectos', {}, { context: 'Carga de dashboard' });
     estado.proyectos = proyectos;
     renderChecklistOnboarding();
     document.getElementById('statProyectos').textContent = proyectos.length;
@@ -1478,7 +1503,7 @@ async function cargarDashboard() {
     
   } catch(e) {
     console.error(e);
-    mostrarAlerta('alertArea','error','Error conectando al servidor. Verifica que el backend esté corriendo.');
+    mostrarAlerta('alertArea','error',e.message || 'Error conectando al servidor.');
   }
 }
 
@@ -1607,11 +1632,8 @@ async function subirDocumento() {
   document.getElementById('loaderText').textContent = '🤖 Analizando con IA...';
   
   try {
-    const res = await fetch(`${API}/api/subir-documento`, {method:'POST', body:fd});
-    const data = await res.json();
+    const data = await apiFetch('/api/subir-documento', { method:'POST', body:fd }, { context: 'Carga de documento' });
     hideLoader();
-    
-    if(!res.ok) throw new Error(data.detail||'Error desconocido');
     
     mostrarAlerta('alertNuevo','success',`✅ Proyecto "${nombre}" creado y analizado exitosamente`);
     clearFile();
@@ -2732,7 +2754,7 @@ async function generarDocumento() {
   showLoader(`⚡ Generando ${tipoLabel[estado.tipoDocSeleccionado]||'documento'} con IA...`);
   
   try {
-    const res = await fetch(`${API}/api/generar-documento`, {
+    const data = await apiFetch('/api/generar-documento', {
       method:'POST',
       headers:{'Content-Type':'application/json'},
       body: JSON.stringify({
@@ -2744,11 +2766,8 @@ async function generarDocumento() {
           model: estado.configIA.model||''
         }
       })
-    });
-    const data = await res.json();
+    }, { context: 'Generación de documento' });
     hideLoader();
-    
-    if(!res.ok) throw new Error(data.detail||'Error desconocido');
     
     mostrarAlerta('alertGenerar','success',
       `✅ Documento generado: <strong>${data.filename}</strong> · <a href="${API}${data.download_url}" download style="color:var(--azul);font-weight:700">⬇️ Descargar ahora</a>`
@@ -2768,6 +2787,35 @@ async function generarDocumento() {
   } catch(e) {
     hideLoader();
     mostrarAlerta('alertGenerar','error','Error generando documento: '+e.message);
+  }
+}
+
+async function cargarDemoLocal() {
+  if(!confirm('¿Cargar proyecto demo local? Esto no elimina tus datos actuales.')) return;
+  showLoader('🧪 Cargando proyecto demo...');
+  try {
+    const data = await apiFetch('/api/demo/seed', { method:'POST' }, { context: 'Carga de demo local' });
+    hideLoader();
+    await cargarDashboard();
+    mostrarAlerta('alertArea', 'success', `${data.message}. Proyecto ID: ${data.proyecto_id}`);
+  } catch (e) {
+    hideLoader();
+    mostrarAlerta('alertArea', 'error', e.message || 'No se pudo cargar la demo local.');
+  }
+}
+
+async function reiniciarDemoLocal() {
+  const ok = confirm('¿Reiniciar datos locales? Se eliminarán proyectos, documentos y predicciones.');
+  if(!ok) return;
+  showLoader('♻️ Reiniciando datos locales...');
+  try {
+    const data = await apiFetch('/api/demo/reset', { method:'POST' }, { context: 'Reinicio de demo local' });
+    hideLoader();
+    await cargarDashboard();
+    mostrarAlerta('alertArea', 'success', data.message || 'Datos reiniciados');
+  } catch (e) {
+    hideLoader();
+    mostrarAlerta('alertArea', 'error', e.message || 'No se pudo reiniciar la demo local.');
   }
 }
 
