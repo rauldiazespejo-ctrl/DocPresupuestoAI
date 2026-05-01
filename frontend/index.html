@@ -2719,9 +2719,32 @@ function renderDocumentosGenerados(docs) {
       </div>
       <div class="pactions">
         <a href="${API}${d.download_url}" class="btn btn-success btn-sm" download>⬇️ Descargar</a>
+        <button class="btn btn-secondary btn-sm" onclick="evaluarQADocumento(${d.id})">🧪 QA</button>
       </div>
     </div>
   `).join('');
+}
+
+async function evaluarQADocumento(documentoId) {
+  showLoader('🧪 Evaluando calidad de documento...');
+  try {
+    const data = await apiFetch(`/api/documentos/${documentoId}/qa`, {}, { context: 'QA de documento' });
+    hideLoader();
+    const faltantes = (data.faltantes || []).slice(0, 4).map(x => `• ${x}`).join('<br/>');
+    const hallazgos = (data.hallazgos || []).slice(0, 3).map(x => `• ${x}`).join('<br/>');
+    const nivel = String(data.nivel || '').toUpperCase();
+    const tipoAlerta = (data.score_qa || 0) >= 85 ? 'success' : ((data.score_qa || 0) >= 65 ? 'warning' : 'error');
+    mostrarAlerta(
+      'alertGenerar',
+      tipoAlerta,
+      `🧪 QA ${data.score_qa || 0}/100 · Nivel ${nivel}<br/>${data.mensaje || ''}` +
+      `${hallazgos ? `<br/><br/><b>Fortalezas:</b><br/>${hallazgos}` : ''}` +
+      `${faltantes ? `<br/><br/><b>Brechas:</b><br/>${faltantes}` : ''}`
+    );
+  } catch (e) {
+    hideLoader();
+    mostrarAlerta('alertGenerar', 'error', e.message || 'No se pudo evaluar QA del documento.');
+  }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════

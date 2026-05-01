@@ -242,6 +242,80 @@ def _to_date(v):
     except Exception:
         return datetime.utcnow()
 
+
+def _qa_rules_for_tipo(tipo: str) -> list[dict]:
+    t = (tipo or "").strip().lower()
+    comunes = [
+        {"key": "archivo_existe", "peso": 25, "label": "Archivo generado disponible"},
+        {"key": "nombre_profesional", "peso": 10, "label": "Nombre de archivo profesional"},
+        {"key": "tamano_archivo", "peso": 10, "label": "Tamaño mínimo de entregable"},
+    ]
+    if t in {"presupuesto_pdf", "presupuesto_excel"}:
+        return comunes + [
+            {"key": "estructura_financiera", "peso": 20, "label": "Estructura financiera mínima"},
+            {"key": "metadatos_cliente", "peso": 10, "label": "Incluye cliente/proyecto"},
+            {"key": "condiciones_comerciales", "peso": 15, "label": "Incluye validez/supuestos"},
+            {"key": "contenido_extendido", "peso": 10, "label": "Contenido técnico suficiente"},
+        ]
+    if t in {"informe_pdf", "propuesta_pdf"}:
+        return comunes + [
+            {"key": "estructura_ejecutiva", "peso": 20, "label": "Estructura ejecutiva del contenido"},
+            {"key": "riesgos_mitigaciones", "peso": 10, "label": "Incluye riesgos/mitigaciones"},
+            {"key": "cierre_recomendacion", "peso": 15, "label": "Incluye cierre/recomendación"},
+            {"key": "contenido_extendido", "peso": 10, "label": "Contenido técnico suficiente"},
+        ]
+    return comunes + [
+        {"key": "contenido_extendido", "peso": 20, "label": "Contenido suficiente"},
+        {"key": "estructura_ejecutiva", "peso": 15, "label": "Estructura ejecutiva"},
+    ]
+
+
+def _qa_check_document(doc: Documento) -> dict:
+    path = Path(doc.archivo_generado or "")
+    contenido = (doc.contenido or "").lower()
+    nombre = (doc.nombre or "").lower()
+    size = path.stat().st_size if path.exists() else 0
+    tipo = (doc.tipo or "").lower()
+
+    checks = {
+        "archivo_existe": path.exists(),
+        "nombre_profesional": any(x in nombre for x in ["presupuesto", "informe", "propuesta", "indice"]),
+        "tamano_archivo": size >= 8_000,
+        "estructura_financiera": any(x in contenido for x in ["subtotal", "iva", "total", "utilidades"]),
+        "metadatos_cliente": any(x in contenido for x in ["cliente", "mandante", "proyecto"]),
+        "condiciones_comerciales": any(x in contenido for x in ["validez", "supuesto", "plazo"]),
+        "estructura_ejecutiva": any(x in contenido for x in ["resumen ejecutivo", "alcance", "metodología", "conclusiones"]),
+        "riesgos_mitigaciones": any(x in contenido for x in ["riesgo", "mitigaci"]),
+        "cierre_recomendacion": any(x in contenido for x in ["recomendación", "cierre", "conclusiones"]),
+        "contenido_extendido": len(doc.contenido or "") >= 600,
+    }
+
+    rules = _qa_rules_for_tipo(tipo)
+    score = 0
+    hallazgos = []
+    faltantes = []
+    for r in rules:
+        ok = bool(checks.get(r["key"], False))
+        if ok:
+            score += int(r["peso"])
+            hallazgos.append(r["label"])
+        else:
+            faltantes.append(r["label"])
+
+    score = min(100, max(0, score))
+    nivel = "pro" if score >= 85 else ("aceptable" if score >= 65 else "debil")
+    return {
+        "documento_id": doc.id,
+        "tipo": doc.tipo,
+        "nombre": doc.nombre,
+        "score_qa": score,
+        "nivel": nivel,
+        "hallazgos": hallazgos,
+        "faltantes": faltantes,
+        "archivo_existe": path.exists(),
+        "archivo_size_bytes": size,
+    }
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # ENDPOINTS
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -566,6 +640,47 @@ async def listar_documentos(proyecto_id: int, db: Session = Depends(get_db)):
         "fecha_creacion": d.fecha_creacion.isoformat() if d.fecha_creacion else "",
         "download_url": f"/api/descargar/{d.id}"
     } for d in docs]
+
+
+@app.get("/api/documentos/{documento_id}/qa")
+async def evaluar_qa_documento(documento_id: int, db: Session = Depends(get_db)):
+    doc = db.query(Documento).filter(Documento.id == documento_id).first()
+    if not doc:
+        raise HTTPException(status_code=404, detail="Documento no encontrado")
+    result = _qa_check_document(doc)
+    result["mensaje"] = (
+        "Documento en estándar pro de entrega."
+        if result["score_qa"] >= 85
+        else "Documento con brechas; revisar faltantes antes de envío a cliente."
+    )
+    return result
+
+
+@app.get("/api/proyectos/{proyecto_id}/documentos/qa-resumen")
+async def resumen_qa_documentos_proyecto(proyecto_id: int, db: Session = Depends(get_db)):
+    docs = db.query(Documento).filter(Documento.proyecto_id == proyecto_id).all()
+    if not docs:
+        return {
+            "proyecto_id": proyecto_id,
+            "documentos": [],
+            "score_promedio": 0,
+            "nivel": "sin_documentos",
+            "mensaje": "No hay documentos para evaluar.",
+        }
+    evaluaciones = [_qa_check_document(d) for d in docs]
+    promedio = round(sum(e["score_qa"] for e in evaluaciones) / len(evaluaciones), 2)
+    nivel = "pro" if promedio >= 85 else ("aceptable" if promedio >= 65 else "debil")
+    return {
+        "proyecto_id": proyecto_id,
+        "documentos": evaluaciones,
+        "score_promedio": promedio,
+        "nivel": nivel,
+        "mensaje": (
+            "Portafolio documental en estándar pro."
+            if promedio >= 85
+            else "Portafolio documental con brechas de calidad."
+        ),
+    }
 
 
 @app.get("/api/proyectos/{proyecto_id}/entrega-readiness")
