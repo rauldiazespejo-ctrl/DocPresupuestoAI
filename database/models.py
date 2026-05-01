@@ -117,6 +117,19 @@ class LegalAceptacionProyecto(Base):
     metadata_json = Column(JSON)
     fecha_registro = Column(DateTime, default=datetime.utcnow)
 
+class PlanCierreItem(Base):
+    __tablename__ = "plan_cierre_items"
+    id = Column(Integer, primary_key=True, index=True)
+    proyecto_id = Column(Integer, index=True)
+    titulo = Column(String, index=True)
+    prioridad = Column(String, default="media")  # alta, media, baja
+    owner = Column(String, default="equipo")
+    estado = Column(String, default="pendiente")  # pendiente, en_progreso, resuelto
+    origen = Column(String, default="manual")  # preflight, manual
+    metadata_json = Column(JSON)
+    fecha_creacion = Column(DateTime, default=datetime.utcnow)
+    fecha_actualizacion = Column(DateTime, default=datetime.utcnow)
+
 def create_tables():
     Base.metadata.create_all(bind=engine)
     # Migracion ligera para sqlite local: agregar columnas nuevas sin romper BD existente.

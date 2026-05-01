@@ -475,6 +475,7 @@ tfoot td{padding:10px 14px;color:var(--blanco);font-weight:700;}
         <button class="btn btn-secondary btn-sm" onclick="reiniciarDemoLocal()">♻️ Reset demo</button>
         <button class="btn btn-secondary btn-sm" onclick="evaluarReadinessProyectoActual()">🏁 Readiness</button>
         <button class="btn btn-secondary btn-sm" onclick="ejecutarPreflightEntrega()">🛫 Preflight</button>
+        <button class="btn btn-secondary btn-sm" onclick="abrirCentroCierre()">🧩 Cierre</button>
         <button class="btn btn-secondary btn-sm" onclick="abrirModal('modalLegal')">📜 Términos</button>
         <button class="btn btn-secondary btn-sm" onclick="abrirModal('modalConfig')">⚙️ Configurar IA</button>
         <button class="btn btn-primary btn-sm" onclick="navegar('nuevo')">➕ Nuevo Proyecto</button>
@@ -501,6 +502,18 @@ tfoot td{padding:10px 14px;color:var(--blanco);font-weight:700;}
         <div class="btn-group">
           <button class="btn btn-primary btn-sm" onclick="abrirOnboarding()">🧭 Abrir onboarding guiado</button>
         </div>
+      </div>
+      <div class="card" id="cierreCard">
+        <div class="card-header">
+          <div class="card-icon">🧩</div>
+          <div><h2>Centro de Cierre</h2><p>Plan operativo para destrabar preflight y habilitar entrega cliente</p></div>
+        </div>
+        <div id="cierreResumen" class="text-muted" style="font-size:0.82rem;margin-bottom:10px;">Selecciona un proyecto para ver acciones de cierre.</div>
+        <div class="btn-group" style="margin-bottom:10px;">
+          <button class="btn btn-secondary btn-sm" onclick="sincronizarCentroCierreDesdePreflight()">🔄 Sincronizar desde Preflight</button>
+          <button class="btn btn-primary btn-sm" onclick="agregarAccionCierreManual()">➕ Nueva acción</button>
+        </div>
+        <div id="cierreItems"></div>
       </div>
       
       <!-- Stats -->
@@ -1552,6 +1565,7 @@ async function cargarDashboard() {
     
     document.getElementById('statPresupuestos').textContent = proyectos.filter(p=>p.tiene_datos).length;
     document.getElementById('statDocumentos').textContent = '–';
+    await cargarCentroCierreProyectoActual();
     
   } catch(e) {
     console.error(e);
@@ -2712,6 +2726,7 @@ async function cargarDatosProyectoGenerar() {
     const docs = await docRes.json();
     renderDocumentosGenerados(docs);
     await sincronizarLegalProyectoUI(parseInt(id));
+    await cargarCentroCierreProyectoActual();
   } catch(e){ console.error(e); }
 }
 
@@ -3017,6 +3032,119 @@ function mostrarBloqueoPreflight(preflight, contenedorId='alertGenerar', tipoDoc
   );
 }
 
+function abrirCentroCierre() {
+  navegar('dashboard');
+  setTimeout(() => {
+    const el = document.getElementById('cierreCard');
+    if(el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    cargarCentroCierreProyectoActual();
+  }, 120);
+}
+
+function prioridadBadge(prioridad) {
+  const p = String(prioridad || 'media').toLowerCase();
+  if(p === 'alta') return '🔴 Alta';
+  if(p === 'baja') return '🟢 Baja';
+  return '🟠 Media';
+}
+
+async function cargarCentroCierreProyectoActual() {
+  const proyectoId = obtenerProyectoActivoId();
+  const resumen = document.getElementById('cierreResumen');
+  const list = document.getElementById('cierreItems');
+  if(!resumen || !list) return;
+  if(!proyectoId) {
+    resumen.textContent = 'Selecciona un proyecto para ver acciones de cierre.';
+    list.innerHTML = '';
+    return;
+  }
+  try {
+    const data = await apiFetch(`/api/proyectos/${proyectoId}/plan-cierre`, {}, { context: 'Centro de cierre' });
+    const items = data.items || [];
+    const pendientes = items.filter(i => i.estado !== 'resuelto').length;
+    resumen.innerHTML = `Proyecto ${proyectoId} · ${items.length} acciones (${pendientes} pendientes)`;
+    if(items.length === 0) {
+      list.innerHTML = '<div class="text-muted" style="padding:8px 0;">Sin acciones aún. Sincroniza desde preflight para generar plan automático.</div>';
+      return;
+    }
+    list.innerHTML = items.map(i => `
+      <div class="proj-row" style="cursor:default;">
+        <div style="font-size:1.1rem">🧷</div>
+        <div style="flex:1">
+          <div class="pname">${i.titulo}</div>
+          <div class="pmeta">${prioridadBadge(i.prioridad)} · Owner: ${i.owner || 'equipo'} · Origen: ${i.origen || 'manual'}</div>
+        </div>
+        <div>
+          <select class="input" style="min-width:130px;height:34px;padding:4px 8px;" onchange="actualizarEstadoCierre(${i.id}, this.value)">
+            <option value="pendiente" ${i.estado==='pendiente'?'selected':''}>Pendiente</option>
+            <option value="en_progreso" ${i.estado==='en_progreso'?'selected':''}>En progreso</option>
+            <option value="resuelto" ${i.estado==='resuelto'?'selected':''}>Resuelto</option>
+          </select>
+        </div>
+      </div>
+    `).join('');
+  } catch (e) {
+    resumen.textContent = 'No se pudo cargar el centro de cierre.';
+    list.innerHTML = '';
+  }
+}
+
+async function sincronizarCentroCierreDesdePreflight() {
+  const proyectoId = obtenerProyectoActivoId();
+  if(!proyectoId) {
+    mostrarAlerta('alertArea', 'warning', 'Selecciona un proyecto para sincronizar el centro de cierre.');
+    return;
+  }
+  try {
+    const data = await apiFetch(`/api/proyectos/${proyectoId}/plan-cierre/sincronizar-preflight`, { method: 'POST' }, { context: 'Sincronización de cierre' });
+    mostrarAlerta('alertArea', 'success', `${data.message}. Acciones nuevas: ${data.creados || 0}.`);
+    await cargarCentroCierreProyectoActual();
+  } catch (e) {
+    mostrarAlerta('alertArea', 'error', e.message || 'No se pudo sincronizar el plan de cierre.');
+  }
+}
+
+async function agregarAccionCierreManual() {
+  const proyectoId = obtenerProyectoActivoId();
+  if(!proyectoId) {
+    mostrarAlerta('alertArea', 'warning', 'Selecciona un proyecto para agregar acciones.');
+    return;
+  }
+  const titulo = prompt('Describe la acción de cierre:');
+  if(!titulo || !titulo.trim()) return;
+  try {
+    await apiFetch(
+      `/api/proyectos/${proyectoId}/plan-cierre`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ titulo: titulo.trim(), prioridad: 'media', owner: 'equipo', estado: 'pendiente', origen: 'manual' })
+      },
+      { context: 'Nueva acción de cierre' }
+    );
+    await cargarCentroCierreProyectoActual();
+  } catch (e) {
+    mostrarAlerta('alertArea', 'error', e.message || 'No se pudo crear la acción de cierre.');
+  }
+}
+
+async function actualizarEstadoCierre(itemId, estadoNuevo) {
+  try {
+    await apiFetch(
+      `/api/plan-cierre/${itemId}`,
+      {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ estado: estadoNuevo })
+      },
+      { context: 'Actualización de acción de cierre' }
+    );
+    await cargarCentroCierreProyectoActual();
+  } catch (e) {
+    mostrarAlerta('alertArea', 'error', e.message || 'No se pudo actualizar el estado de cierre.');
+  }
+}
+
 async function ejecutarPreflightEntrega() {
   let proyectoId = obtenerProyectoActivoId();
   if(!proyectoId) {
@@ -3044,6 +3172,9 @@ async function ejecutarPreflightEntrega() {
       `${brechas ? `<br/><br/><b>Brechas críticas:</b><br/>${brechas}` : ''}` +
       `${acciones ? `<br/><br/><b>Plan de cierre:</b><br/>${acciones}` : ''}`
     );
+    if(data.estado_final === 'no_apto') {
+      await sincronizarCentroCierreDesdePreflight();
+    }
   } catch (e) {
     hideLoader();
     mostrarAlerta('alertArea', 'error', e.message || 'No se pudo ejecutar preflight.');

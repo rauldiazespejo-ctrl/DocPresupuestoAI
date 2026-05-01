@@ -33,6 +33,7 @@ from database.models import (
     EvidenciaRequisito,
     HistoricoLicitacion,
     LegalAceptacionProyecto,
+    PlanCierreItem,
 )
 from backend.extractor import extract_text
 from backend.ai_engine import AIEngine
@@ -223,6 +224,22 @@ class LegalAceptacionRequest(BaseModel):
     accepted_source: str = "frontend-local"
     accepted_by: str = ""
     metadata: dict = Field(default_factory=dict)
+
+
+class PlanCierreItemRequest(BaseModel):
+    titulo: str
+    prioridad: str = "media"
+    owner: str = "equipo"
+    estado: str = "pendiente"
+    origen: str = "manual"
+    metadata: dict = Field(default_factory=dict)
+
+
+class PlanCierreItemUpdateRequest(BaseModel):
+    prioridad: Optional[str] = None
+    owner: Optional[str] = None
+    estado: Optional[str] = None
+    titulo: Optional[str] = None
 
 # ─── Configuración IA en memoria (sesión) ─────────────────────────────────────
 ia_config = {}
@@ -418,6 +435,7 @@ async def eliminar_proyecto(proyecto_id: int, db: Session = Depends(get_db)):
     proyecto = db.query(Proyecto).filter(Proyecto.id == proyecto_id).first()
     if not proyecto:
         raise HTTPException(status_code=404, detail="Proyecto no encontrado")
+    db.query(PlanCierreItem).filter(PlanCierreItem.proyecto_id == proyecto_id).delete()
     db.query(LegalAceptacionProyecto).filter(LegalAceptacionProyecto.proyecto_id == proyecto_id).delete()
     db.delete(proyecto)
     db.commit()
@@ -437,6 +455,7 @@ async def reset_demo_data(db: Session = Depends(get_db)):
     db.query(OfertaLicitacion).delete()
     db.query(HistoricoLicitacion).delete()
     db.query(LegalAceptacionProyecto).delete()
+    db.query(PlanCierreItem).delete()
     db.query(Proyecto).delete()
     db.commit()
     return {"message": "Datos demo reiniciados"}
@@ -1083,6 +1102,121 @@ async def ejecutar_preflight_entrega(proyecto_id: int, db: Session = Depends(get
             else "Proyecto con brechas para entrega; ejecutar plan de cierre."
         ),
     }
+
+
+def _prioridad_desde_accion(texto: str) -> str:
+    t = (texto or "").lower()
+    if any(x in t for x in ["crític", "bloque", "obligatorio", "legal", "falt"]):
+        return "alta"
+    if any(x in t for x in ["qa", "evidencia", "requisito"]):
+        return "media"
+    return "baja"
+
+
+@app.get("/api/proyectos/{proyecto_id}/plan-cierre")
+async def listar_plan_cierre(proyecto_id: int, db: Session = Depends(get_db)):
+    proyecto = db.query(Proyecto).filter(Proyecto.id == proyecto_id).first()
+    if not proyecto:
+        raise HTTPException(status_code=404, detail="Proyecto no encontrado")
+    items = (
+        db.query(PlanCierreItem)
+        .filter(PlanCierreItem.proyecto_id == proyecto_id)
+        .order_by(PlanCierreItem.fecha_creacion.desc())
+        .all()
+    )
+    return {
+        "proyecto_id": proyecto_id,
+        "items": [{
+            "id": i.id,
+            "titulo": i.titulo,
+            "prioridad": i.prioridad,
+            "owner": i.owner,
+            "estado": i.estado,
+            "origen": i.origen,
+            "metadata": i.metadata_json or {},
+            "fecha_creacion": i.fecha_creacion.isoformat() if i.fecha_creacion else "",
+            "fecha_actualizacion": i.fecha_actualizacion.isoformat() if i.fecha_actualizacion else "",
+        } for i in items]
+    }
+
+
+@app.post("/api/proyectos/{proyecto_id}/plan-cierre")
+async def crear_item_plan_cierre(proyecto_id: int, req: PlanCierreItemRequest, db: Session = Depends(get_db)):
+    proyecto = db.query(Proyecto).filter(Proyecto.id == proyecto_id).first()
+    if not proyecto:
+        raise HTTPException(status_code=404, detail="Proyecto no encontrado")
+    item = PlanCierreItem(
+        proyecto_id=proyecto_id,
+        titulo=(req.titulo or "").strip(),
+        prioridad=(req.prioridad or "media").strip().lower(),
+        owner=(req.owner or "equipo").strip(),
+        estado=(req.estado or "pendiente").strip().lower(),
+        origen=(req.origen or "manual").strip().lower(),
+        metadata_json=req.metadata or {},
+        fecha_actualizacion=datetime.utcnow(),
+    )
+    db.add(item)
+    db.commit()
+    db.refresh(item)
+    return {"item_id": item.id, "message": "Item de cierre creado"}
+
+
+@app.post("/api/proyectos/{proyecto_id}/plan-cierre/sincronizar-preflight")
+async def sincronizar_plan_cierre_desde_preflight(proyecto_id: int, db: Session = Depends(get_db)):
+    preflight = await ejecutar_preflight_entrega(proyecto_id, db)
+    candidatos = []
+    for x in (preflight.get("plan_cierre") or []):
+        if x and isinstance(x, str):
+            candidatos.append(x.strip())
+    for x in (preflight.get("brechas_criticas") or []):
+        if x and isinstance(x, str):
+            candidatos.append(f"Resolver brecha: {x.strip()}")
+
+    existentes = db.query(PlanCierreItem).filter(PlanCierreItem.proyecto_id == proyecto_id).all()
+    firmas_existentes = {(e.titulo or "").strip().lower() for e in existentes}
+    creados = 0
+    for titulo in candidatos:
+        firma = titulo.lower()
+        if firma in firmas_existentes:
+            continue
+        item = PlanCierreItem(
+            proyecto_id=proyecto_id,
+            titulo=titulo,
+            prioridad=_prioridad_desde_accion(titulo),
+            owner="equipo",
+            estado="pendiente",
+            origen="preflight",
+            metadata_json={"estado_preflight": preflight.get("estado_final", "")},
+            fecha_actualizacion=datetime.utcnow(),
+        )
+        db.add(item)
+        firmas_existentes.add(firma)
+        creados += 1
+    db.commit()
+    return {
+        "proyecto_id": proyecto_id,
+        "creados": creados,
+        "estado_preflight": preflight.get("estado_final"),
+        "message": "Plan de cierre sincronizado desde preflight",
+    }
+
+
+@app.put("/api/plan-cierre/{item_id}")
+async def actualizar_item_plan_cierre(item_id: int, req: PlanCierreItemUpdateRequest, db: Session = Depends(get_db)):
+    item = db.query(PlanCierreItem).filter(PlanCierreItem.id == item_id).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Item de cierre no encontrado")
+    if req.titulo is not None:
+        item.titulo = req.titulo.strip()
+    if req.owner is not None:
+        item.owner = req.owner.strip()
+    if req.prioridad is not None:
+        item.prioridad = req.prioridad.strip().lower()
+    if req.estado is not None:
+        item.estado = req.estado.strip().lower()
+    item.fecha_actualizacion = datetime.utcnow()
+    db.commit()
+    return {"message": "Item de cierre actualizado"}
 
 # ─── CONSULTA LIBRE ───────────────────────────────────────────────────────────
 @app.post("/api/consulta")
