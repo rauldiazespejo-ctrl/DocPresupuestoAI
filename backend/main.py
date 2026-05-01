@@ -78,6 +78,13 @@ SECCIONES_DOCUMENTALES = [
 ]
 CODIGO_LICITACION_REGEX = re.compile(r"^OT_[0-9]{8}_[A-Z0-9]+(?:_[A-Z0-9]+)*$")
 LEGAL_TERMS_CURRENT_VERSION = "v1.0.0"
+PRELIGHT_QA_MIN_SCORE = 85
+PREFLIGHT_REQUIRED_DOC_GROUPS = {
+    "presupuesto": ["presupuesto_pdf", "presupuesto_excel"],
+    "informe": ["informe_pdf"],
+    "propuesta": ["propuesta_pdf"],
+    "indice_documental": ["indice_documental_pdf", "indice_documental_excel"],
+}
 
 
 def _slugify(texto: str) -> str:
@@ -947,14 +954,54 @@ async def ejecutar_preflight_entrega(proyecto_id: int, db: Session = Depends(get
     brechas_qa = []
     plan_cierre = []
     for ev in qa_docs:
-        if ev["score_qa"] < 85:
+        if ev["score_qa"] < PRELIGHT_QA_MIN_SCORE:
             brechas_qa.append(f"{ev['nombre']} ({ev['score_qa']}/100)")
             for rec in ev.get("recomendaciones", [])[:2]:
                 if rec not in plan_cierre:
                     plan_cierre.append(rec)
 
+    docs_por_tipo = {}
+    for ev in qa_docs:
+        tipo_doc = ev.get("tipo", "")
+        docs_por_tipo.setdefault(tipo_doc, []).append(ev)
+    mejor_score_por_tipo = {
+        t: max((x.get("score_qa", 0) for x in evals), default=0)
+        for t, evals in docs_por_tipo.items()
+    }
+
+    cobertura_items = []
+    brechas_cobertura = []
+    faltantes_criticos = []
+    for grupo, tipos_grupo in PREFLIGHT_REQUIRED_DOC_GROUPS.items():
+        presentes = [t for t in tipos_grupo if t in tipos_docs]
+        best_score = max((mejor_score_por_tipo.get(t, 0) for t in presentes), default=0)
+        qa_ok = bool(presentes) and best_score >= PRELIGHT_QA_MIN_SCORE
+        item = {
+            "grupo": grupo,
+            "tipos_validos": tipos_grupo,
+            "tipos_presentes": presentes,
+            "presente": bool(presentes),
+            "score_qa_max": best_score,
+            "qa_ok": qa_ok,
+        }
+        cobertura_items.append(item)
+        if not presentes:
+            faltantes_criticos.append(grupo)
+            brechas_cobertura.append(f"Falta entregable obligatorio del grupo '{grupo}'.")
+            plan_cierre.append(f"Generar documento obligatorio del grupo '{grupo}'.")
+        elif not qa_ok:
+            brechas_cobertura.append(
+                f"Grupo '{grupo}' bajo estándar QA ({best_score}/100, mínimo {PRELIGHT_QA_MIN_SCORE})."
+            )
+            plan_cierre.append(
+                f"Regenerar o mejorar documento del grupo '{grupo}' hasta QA >= {PRELIGHT_QA_MIN_SCORE}."
+            )
+
+    grupos_ok = sum(1 for x in cobertura_items if x["qa_ok"])
+    cobertura_pct = round((grupos_ok / len(cobertura_items)) * 100, 2) if cobertura_items else 0.0
+
     score_global = round((score_readiness * 0.55) + (score_qa * 0.45), 2)
-    brechas_criticas = brechas_readiness + brechas_qa
+    brechas_criticas = brechas_readiness + brechas_qa + brechas_cobertura
     if not legal_al_dia:
         brechas_criticas.append("Falta aceptación legal vigente del proyecto.")
         plan_cierre.insert(0, "Registrar aceptación legal del proyecto en versión vigente de términos.")
@@ -968,6 +1015,10 @@ async def ejecutar_preflight_entrega(proyecto_id: int, db: Session = Depends(get
 
     if estado_final == "apto" and not legal_al_dia:
         estado_final = "condicional"
+    if faltantes_criticos:
+        estado_final = "no_apto"
+    elif estado_final == "apto" and cobertura_pct < 100:
+        estado_final = "condicional"
 
     apto_para_cliente = estado_final == "apto"
     if not plan_cierre and not apto_para_cliente:
@@ -976,6 +1027,10 @@ async def ejecutar_preflight_entrega(proyecto_id: int, db: Session = Depends(get
             "Completar evidencias y elevar cumplimiento documental sobre 80%.",
             "Recalcular predicción y bid leveling para respaldo ejecutivo.",
         ]
+    plan_cierre_dedup = []
+    for accion in plan_cierre:
+        if accion not in plan_cierre_dedup:
+            plan_cierre_dedup.append(accion)
 
     return {
         "proyecto_id": proyecto_id,
@@ -984,6 +1039,14 @@ async def ejecutar_preflight_entrega(proyecto_id: int, db: Session = Depends(get
         "score_global": score_global,
         "score_readiness": score_readiness,
         "score_qa": score_qa,
+        "cobertura_documental": {
+            "grupos_requeridos": len(cobertura_items),
+            "grupos_ok": grupos_ok,
+            "cumplimiento_pct": cobertura_pct,
+            "faltantes_criticos": faltantes_criticos,
+            "detalle": cobertura_items,
+            "qa_min_score": PRELIGHT_QA_MIN_SCORE,
+        },
         "legal": {
             "aceptado": legal_aceptado,
             "al_dia": legal_al_dia,
@@ -992,7 +1055,7 @@ async def ejecutar_preflight_entrega(proyecto_id: int, db: Session = Depends(get
             "accepted_at": legal_rec.accepted_at.isoformat() if legal_rec and legal_rec.accepted_at else None,
         },
         "brechas_criticas": brechas_criticas,
-        "plan_cierre": plan_cierre[:8],
+        "plan_cierre": plan_cierre_dedup[:8],
         "mensaje": (
             "Proyecto apto para entrega cliente."
             if apto_para_cliente

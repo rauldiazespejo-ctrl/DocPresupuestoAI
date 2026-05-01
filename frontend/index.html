@@ -2997,11 +2997,14 @@ async function ejecutarPreflightEntrega() {
     const acciones = (data.plan_cierre || []).slice(0, 4).map(x => `• ${x}`).join('<br/>');
     const legal = data.legal || {};
     const legalEstado = legal.al_dia ? '✅ Legal vigente' : '⚠️ Legal pendiente';
+    const cobertura = data.cobertura_documental || {};
+    const coberturaTxt = `📦 Cobertura documental ${cobertura.grupos_ok || 0}/${cobertura.grupos_requeridos || 0} (${cobertura.cumplimiento_pct || 0}%)`;
     mostrarAlerta(
       'alertArea',
       tipo,
       `🛫 Preflight: <b>${estadoFinal}</b> · Score global ${data.score_global || 0}/100<br/>${data.mensaje || ''}` +
       `<br/>${legalEstado}` +
+      `<br/>${coberturaTxt}` +
       `${brechas ? `<br/><br/><b>Brechas críticas:</b><br/>${brechas}` : ''}` +
       `${acciones ? `<br/><br/><b>Plan de cierre:</b><br/>${acciones}` : ''}`
     );
