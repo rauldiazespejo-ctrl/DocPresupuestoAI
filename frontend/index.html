@@ -247,6 +247,25 @@ tfoot td{padding:10px 14px;color:var(--blanco);font-weight:700;}
 .legal-badge{padding:5px 10px;border-radius:20px;font-size:0.72rem;font-weight:700;}
 .legal-ok{background:#d5f4e6;color:#1a5c35;}
 .legal-pending{background:#fde9e9;color:#8f2020;}
+.op-badge{padding:5px 10px;border-radius:20px;font-size:0.72rem;font-weight:700;}
+.op-online{background:#d5f4e6;color:#1a5c35;}
+.op-offline{background:#fde9e9;color:#8f2020;}
+.op-checking{background:#fff4d8;color:#7d5c00;}
+.onboarding-progress{height:8px;background:var(--gris-m);border-radius:999px;overflow:hidden;margin:10px 0 6px;}
+.onboarding-progress-fill{height:100%;background:linear-gradient(90deg,var(--azul-m),var(--azul-c));width:0%;transition:width 0.3s ease;}
+.onboarding-step{display:flex;justify-content:space-between;align-items:center;padding:10px 12px;background:var(--gris);border:1px solid var(--gris-m);border-radius:var(--radio-s);margin-bottom:8px;gap:10px;}
+.onboarding-step-ok{border-color:rgba(39,174,96,0.5);background:rgba(39,174,96,0.08);}
+.onboarding-step-title{font-size:0.84rem;font-weight:600;color:var(--azul);}
+.onboarding-step-sub{font-size:0.74rem;color:#677;}
+.onboarding-chip{padding:4px 8px;border-radius:999px;font-size:0.68rem;font-weight:700;}
+.onboarding-chip-ok{background:#d5f4e6;color:#1a5c35;}
+.onboarding-chip-pending{background:#fde9e9;color:#8f2020;}
+.onboarding-estimate{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:999px;background:#e8f4fd;color:#1a3c5e;font-size:0.74rem;font-weight:700;}
+.ready-banner{display:none;padding:14px 16px;border-radius:var(--radio-s);border:1px solid rgba(39,174,96,0.5);background:linear-gradient(135deg,rgba(39,174,96,0.15),rgba(77,182,216,0.14));margin-bottom:12px;animation:readyPop 0.45s ease;}
+.ready-banner.show{display:block;}
+.ready-title{font-size:0.92rem;font-weight:800;color:#1a5c35;}
+.ready-sub{font-size:0.8rem;color:#1f4e66;margin-top:4px;}
+@keyframes readyPop{from{opacity:0;transform:scale(0.98) translateY(4px);}to{opacity:1;transform:scale(1) translateY(0);}}
 
 /* ═══════════════════════════════════════════════════
    LOADER OVERLAY
@@ -380,6 +399,24 @@ tfoot td{padding:10px 14px;color:var(--blanco);font-weight:700;}
   </div>
 </div>
 
+<!-- MODAL ONBOARDING -->
+<div class="modal-overlay" id="modalOnboarding">
+  <div class="modal">
+    <h3>🚀 Activa DocPresupuestoAI para vender más rápido</h3>
+    <p>Completa esta activación guiada y deja el sistema listo para preparar licitaciones con calidad comercial.</p>
+    <div class="onboarding-estimate">⏱️ Tiempo estimado: <span id="onboardingEtaText">90 segundos</span></div>
+    <div class="onboarding-progress">
+      <div id="onboardingProgressFill" class="onboarding-progress-fill"></div>
+    </div>
+    <div id="onboardingProgressLabel" class="text-muted" style="font-size:0.78rem;margin-bottom:10px;">0/3 completado</div>
+    <div id="onboardingStepsContainer"></div>
+    <div class="btn-group mt-4">
+      <button class="btn btn-primary" onclick="cerrarModal('modalOnboarding')">Continuar</button>
+      <button class="btn btn-secondary" onclick="omitirOnboarding()">Omitir por ahora</button>
+    </div>
+  </div>
+</div>
+
 <!-- APP WRAPPER -->
 <div class="app-wrapper">
 
@@ -431,7 +468,9 @@ tfoot td{padding:10px 14px;color:var(--blanco);font-weight:700;}
     <div class="topbar">
       <div class="topbar-title" id="topbarTitle">📊 Dashboard</div>
       <div class="topbar-actions">
+        <span id="backendStatusBadge" class="op-badge op-checking">Backend verificando...</span>
         <span id="legalStatusBadge" class="legal-badge legal-pending">Legal pendiente</span>
+        <button class="btn btn-secondary btn-sm" onclick="abrirOnboarding()">🧭 Onboarding</button>
         <button class="btn btn-secondary btn-sm" onclick="abrirModal('modalLegal')">📜 Términos</button>
         <button class="btn btn-secondary btn-sm" onclick="abrirModal('modalConfig')">⚙️ Configurar IA</button>
         <button class="btn btn-primary btn-sm" onclick="navegar('nuevo')">➕ Nuevo Proyecto</button>
@@ -441,6 +480,24 @@ tfoot td{padding:10px 14px;color:var(--blanco);font-weight:700;}
     <!-- ══ DASHBOARD ══════════════════════════════════════════════════════════ -->
     <div class="page active" id="page-dashboard">
       <div id="alertArea"></div>
+      <div class="card" id="onboardingChecklistCard">
+        <div class="card-header">
+          <div class="card-icon">🧭</div>
+          <div><h2>Checklist de Activación</h2><p>Tu entorno local para demo y operación comercial</p></div>
+        </div>
+        <div id="onboardingReadyBanner" class="ready-banner">
+          <div class="ready-title">✅ Sistema listo para licitar</div>
+          <div class="ready-sub">Ya puedes cargar bases, generar documentos y mostrar una demo de alto impacto.</div>
+        </div>
+        <div class="onboarding-progress" id="onboardingDashboardProgressWrap">
+          <div id="onboardingDashboardProgressFill" class="onboarding-progress-fill"></div>
+        </div>
+        <div id="onboardingDashboardProgressLabel" class="text-muted" style="font-size:0.78rem;margin-bottom:12px;">0/3 completado</div>
+        <div id="onboardingDashboardSteps"></div>
+        <div class="btn-group">
+          <button class="btn btn-primary btn-sm" onclick="abrirOnboarding()">🧭 Abrir onboarding guiado</button>
+        </div>
+      </div>
       
       <!-- Stats -->
       <div class="stats-grid" id="statsGrid">
@@ -960,6 +1017,9 @@ let estado = {
   proyectoActual: null,
   configIA: JSON.parse(localStorage.getItem('docpresupuesto_ia') || 'null') || LOCAL_IA_CONFIG,
   legalAceptado: localStorage.getItem('docpresupuesto_legal_v1') === 'accepted',
+  backendOnline: false,
+  backendLastCheck: '',
+  onboardingOmitido: localStorage.getItem('docpresupuesto_onboarding_omitido') === '1',
   tipoDocSeleccionado: null,
   escenariosSimulacion: [
     { nombre: 'Escenario 1', factores: {} },
@@ -967,6 +1027,155 @@ let estado = {
     { nombre: 'Escenario 3', factores: {} }
   ],
 };
+
+function pasosOnboarding() {
+  const iaOk = !!(estado.configIA && estado.configIA.api_key && String(estado.configIA.api_key).trim().length > 0);
+  const proyectosOk = (estado.proyectos || []).length > 0;
+  return [
+    {
+      key: 'legal',
+      titulo: 'Blindaje legal operativo',
+      subtitulo: 'Habilita uso formal y evita fricción de cumplimiento',
+      completo: !!estado.legalAceptado,
+      accionLabel: 'Ir a términos',
+      accion: "abrirModal('modalLegal')"
+    },
+    {
+      key: 'ia',
+      titulo: 'Conectar motor de IA',
+      subtitulo: 'Activa generación inteligente para licitaciones',
+      completo: iaOk,
+      accionLabel: 'Configurar IA',
+      accion: "abrirModal('modalConfig')"
+    },
+    {
+      key: 'proyecto',
+      titulo: 'Crear primer caso real',
+      subtitulo: 'Carga bases y demuestra valor en minutos',
+      completo: proyectosOk,
+      accionLabel: 'Nuevo proyecto',
+      accion: "navegar('nuevo')"
+    }
+  ];
+}
+
+function renderChecklistOnboarding() {
+  const pasos = pasosOnboarding();
+  const completados = pasos.filter(p => p.completo).length;
+  const total = pasos.length;
+  const pct = Math.round((completados / total) * 100);
+  const label = `${completados}/${total} completado`;
+  const segundosRestantes = Math.max(0, (total - completados) * 30);
+  const etaTexto = segundosRestantes <= 0 ? 'Completado' : `${segundosRestantes} segundos`;
+
+  const dashFill = document.getElementById('onboardingDashboardProgressFill');
+  const dashLabel = document.getElementById('onboardingDashboardProgressLabel');
+  const dashSteps = document.getElementById('onboardingDashboardSteps');
+  if(dashFill) dashFill.style.width = `${pct}%`;
+  if(dashLabel) dashLabel.textContent = label;
+  if(dashSteps) {
+    dashSteps.innerHTML = pasos.map(p => `
+      <div class="onboarding-step ${p.completo ? 'onboarding-step-ok' : ''}">
+        <div>
+          <div class="onboarding-step-title">${p.completo ? '✅' : '⏳'} ${p.titulo}</div>
+          <div class="onboarding-step-sub">${p.subtitulo}</div>
+        </div>
+        <span class="onboarding-chip ${p.completo ? 'onboarding-chip-ok' : 'onboarding-chip-pending'}">${p.completo ? 'Completado' : 'Pendiente'}</span>
+      </div>
+    `).join('');
+  }
+
+  const modalFill = document.getElementById('onboardingProgressFill');
+  const modalLabel = document.getElementById('onboardingProgressLabel');
+  const modalSteps = document.getElementById('onboardingStepsContainer');
+  if(modalFill) modalFill.style.width = `${pct}%`;
+  if(modalLabel) modalLabel.textContent = label;
+  const eta = document.getElementById('onboardingEtaText');
+  if(eta) eta.textContent = etaTexto;
+  if(modalSteps) {
+    modalSteps.innerHTML = pasos.map(p => `
+      <div class="onboarding-step ${p.completo ? 'onboarding-step-ok' : ''}">
+        <div>
+          <div class="onboarding-step-title">${p.completo ? '✅' : '⏳'} ${p.titulo}</div>
+          <div class="onboarding-step-sub">${p.subtitulo}</div>
+        </div>
+        ${p.completo
+          ? `<span class="onboarding-chip onboarding-chip-ok">Completado</span>`
+          : `<button class="btn btn-primary btn-sm" onclick="${p.accion}">${p.accionLabel}</button>`}
+      </div>
+    `).join('');
+  }
+
+  const card = document.getElementById('onboardingChecklistCard');
+  const readyBanner = document.getElementById('onboardingReadyBanner');
+  const dashStepsWrap = document.getElementById('onboardingDashboardSteps');
+  const dashProgressWrap = document.getElementById('onboardingDashboardProgressWrap');
+  if(card) card.classList.remove('hidden');
+  if(readyBanner) {
+    readyBanner.classList.toggle('show', completados === total);
+  }
+  if(dashStepsWrap) dashStepsWrap.classList.toggle('hidden', completados === total);
+  if(dashProgressWrap) dashProgressWrap.classList.toggle('hidden', completados === total);
+  if(dashLabel) {
+    dashLabel.classList.toggle('hidden', completados === total);
+  }
+}
+
+function abrirOnboarding() {
+  renderChecklistOnboarding();
+  abrirModal('modalOnboarding');
+}
+
+function omitirOnboarding() {
+  estado.onboardingOmitido = true;
+  localStorage.setItem('docpresupuesto_onboarding_omitido', '1');
+  cerrarModal('modalOnboarding');
+}
+
+function actualizarEstadoBackendUI() {
+  const badge = document.getElementById('backendStatusBadge');
+  if(!badge) return;
+  if(estado.backendLastCheck === '') {
+    badge.textContent = 'Backend verificando...';
+    badge.className = 'op-badge op-checking';
+    return;
+  }
+  if(estado.backendOnline) {
+    badge.textContent = `Backend online (${estado.backendLastCheck})`;
+    badge.className = 'op-badge op-online';
+  } else {
+    badge.textContent = `Backend offline (${estado.backendLastCheck})`;
+    badge.className = 'op-badge op-offline';
+  }
+}
+
+function horaActual() {
+  return new Date().toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' });
+}
+
+async function verificarBackendHealth(silencioso=true) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 2500);
+  try {
+    const res = await fetch(`${API}/health`, { signal: controller.signal });
+    const ok = res.ok;
+    estado.backendOnline = ok;
+    estado.backendLastCheck = horaActual();
+    actualizarEstadoBackendUI();
+    if(!ok && !silencioso) {
+      mostrarAlerta('alertArea','error','Backend no disponible. Verifica el launcher desktop.');
+    }
+  } catch(_) {
+    estado.backendOnline = false;
+    estado.backendLastCheck = horaActual();
+    actualizarEstadoBackendUI();
+    if(!silencioso) {
+      mostrarAlerta('alertArea','error','No se puede conectar al backend local.');
+    }
+  } finally {
+    clearTimeout(timeout);
+  }
+}
 
 function actualizarEstadoLegalUI() {
   const badge = document.getElementById('legalStatusBadge');
@@ -1001,6 +1210,7 @@ function aceptarTerminos() {
   if(chkNuevo) chkNuevo.checked = true;
   cerrarModal('modalLegal');
   actualizarEstadoLegalUI();
+  renderChecklistOnboarding();
   mostrarAlerta('alertArea', 'success', 'Términos legales aceptados correctamente.');
 }
 
@@ -1104,6 +1314,7 @@ function guardarConfigIA() {
   localStorage.setItem('docpresupuesto_ia', JSON.stringify(config));
   cerrarModal('modalConfig');
   actualizarStatusIA();
+  renderChecklistOnboarding();
   mostrarAlerta('alertArea','success','Configuración de IA guardada ✓');
 }
 function cargarConfigIA() {
@@ -1137,6 +1348,7 @@ async function cargarDashboard() {
     const res = await fetch(`${API}/api/proyectos`);
     const proyectos = await res.json();
     estado.proyectos = proyectos;
+    renderChecklistOnboarding();
     document.getElementById('statProyectos').textContent = proyectos.length;
     
     // Lista sidebar
@@ -2570,15 +2782,13 @@ document.addEventListener('DOMContentLoaded', ()=>{
   sincronizarInputsNombresEscenario();
   cargarConfigIA();
   actualizarEstadoLegalUI();
+  actualizarEstadoBackendUI();
+  renderChecklistOnboarding();
   if(!estado.legalAceptado) abrirModal('modalLegal');
+  if(!estado.onboardingOmitido) abrirOnboarding();
   cargarDashboard();
-  
-  // Verificar servidor
-  fetch(`${API}/health`).then(r=>r.json()).then(d=>{
-    console.log('✅ Servidor conectado');
-  }).catch(e=>{
-    mostrarAlerta('alertArea','error','⚠️ Backend no disponible. Inicia el servidor con: <code>python3 -m uvicorn backend.main:app --host 0.0.0.0 --port 8000</code>');
-  });
+  verificarBackendHealth(false);
+  setInterval(()=>verificarBackendHealth(true), 15000);
 });
 </script>
 </body>

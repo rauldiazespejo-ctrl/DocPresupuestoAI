@@ -9,6 +9,7 @@ using pywebview. Intended for pilot testing on desktop.
 from __future__ import annotations
 
 import atexit
+from datetime import datetime
 import fcntl
 import os
 import signal
@@ -40,7 +41,19 @@ ROOT = _project_root()
 FRONTEND_FILE = ROOT / "frontend" / "index.html"
 _backend_process: subprocess.Popen | None = None
 _instance_lock_handle = None
+_backend_log_handle = None
 LOCK_FILE_PATH = Path("/tmp/docpresupuestoai.lock")
+LOGS_DIR = Path.home() / "Library" / "Logs" / APP_NAME
+DESKTOP_LOG_FILE = LOGS_DIR / "desktop-launcher.log"
+BACKEND_LOG_FILE = LOGS_DIR / "backend.log"
+
+
+def _log(message: str) -> None:
+    LOGS_DIR.mkdir(parents=True, exist_ok=True)
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    line = f"[{timestamp}] {message}\n"
+    with open(DESKTOP_LOG_FILE, "a", encoding="utf-8") as f:
+        f.write(line)
 
 
 def _wait_backend_ready(timeout_seconds: int = 30) -> bool:
@@ -56,6 +69,7 @@ def _wait_backend_ready(timeout_seconds: int = 30) -> bool:
 
 
 def _start_backend() -> subprocess.Popen:
+    global _backend_log_handle
     env = os.environ.copy()
     env["PYTHONPATH"] = str(ROOT)
     command = [
@@ -68,20 +82,39 @@ def _start_backend() -> subprocess.Popen:
         "--port",
         str(BACKEND_PORT),
     ]
-    return subprocess.Popen(command, cwd=str(ROOT), env=env)
+    LOGS_DIR.mkdir(parents=True, exist_ok=True)
+    _backend_log_handle = open(BACKEND_LOG_FILE, "a", encoding="utf-8")
+    _log(f"Iniciando backend: {' '.join(command)}")
+    return subprocess.Popen(
+        command,
+        cwd=str(ROOT),
+        env=env,
+        stdout=_backend_log_handle,
+        stderr=_backend_log_handle,
+    )
 
 
 def _stop_backend() -> None:
-    global _backend_process
+    global _backend_process, _backend_log_handle
     if _backend_process is None:
         return
     if _backend_process.poll() is None:
+        _log("Deteniendo proceso backend...")
         _backend_process.terminate()
         try:
             _backend_process.wait(timeout=5)
         except subprocess.TimeoutExpired:
+            _log("Backend no respondió a terminate; aplicando kill.")
             _backend_process.kill()
+    else:
+        _log(f"Backend ya detenido con código {_backend_process.returncode}.")
     _backend_process = None
+    if _backend_log_handle is not None:
+        try:
+            _backend_log_handle.close()
+        except Exception:
+            pass
+        _backend_log_handle = None
 
 
 def _handle_exit_signal(signum, _frame) -> None:
@@ -110,10 +143,12 @@ def main() -> int:
     global _backend_process
 
     if not _acquire_single_instance_lock():
+        _log("Intento bloqueado: ya existe una instancia activa.")
         print("DocPresupuestoAI ya está en ejecución. Se evita abrir otra instancia.")
         return 0
 
     if not FRONTEND_FILE.exists():
+        _log(f"Frontend no encontrado en {FRONTEND_FILE}")
         print(f"Frontend no encontrado: {FRONTEND_FILE}")
         return 1
 
@@ -123,19 +158,28 @@ def main() -> int:
 
     _backend_process = _start_backend()
     if not _wait_backend_ready():
+        _log("Fallo al iniciar backend: /health no respondió dentro del tiempo límite.")
         print("No fue posible iniciar backend en /health.")
         _stop_backend()
         return 1
 
     window_url = FRONTEND_FILE.resolve().as_uri()
-    webview.create_window(
-        f"{APP_NAME} - Escritorio | Desarrollado por {DEVELOPER_NAME}",
-        window_url,
-        width=1440,
-        height=900,
-        min_size=(1180, 760),
-    )
-    webview.start()
+    _log(f"Backend listo. Abriendo interfaz: {window_url}")
+    try:
+        webview.create_window(
+            f"{APP_NAME} - Escritorio | Desarrollado por {DEVELOPER_NAME}",
+            window_url,
+            width=1440,
+            height=900,
+            min_size=(1180, 760),
+        )
+        webview.start()
+    except Exception as exc:
+        _log(f"Error en webview: {exc}")
+        _stop_backend()
+        print(f"Error al abrir interfaz desktop: {exc}")
+        return 1
+    _log("Aplicación cerrada por usuario.")
     return 0
 
 
