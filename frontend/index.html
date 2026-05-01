@@ -1012,11 +1012,83 @@ tfoot td{padding:10px 14px;color:var(--blanco);font-weight:700;}
 ═══════════════════════════════════════════════════════════════════════════ */
 const API = 'http://localhost:8000';
 const LOCAL_IA_CONFIG = window.DOC_AI_LOCAL_CONFIG || null;
+const IA_CONFIG_STORAGE_KEY = 'docpresupuesto_ia';
+const IA_API_KEY_SESSION_KEY = 'docpresupuesto_ia_api_key_session';
+const LEGAL_ACCEPTANCE_STORAGE_KEY = 'docpresupuesto_legal_meta_v1';
+const LEGAL_TERMS_VERSION = 'v1.0.0';
+
+function obtenerConfigIALocal() {
+  try {
+    return JSON.parse(localStorage.getItem(IA_CONFIG_STORAGE_KEY) || 'null');
+  } catch(_) {
+    return null;
+  }
+}
+
+function obtenerApiKeySesion() {
+  return sessionStorage.getItem(IA_API_KEY_SESSION_KEY) || '';
+}
+
+function guardarConfigIALocal(config) {
+  const segura = {
+    provider: config.provider || 'openai',
+    model: config.model || '',
+    api_key: '' // seguridad: no persistir clave fuera de sesión
+  };
+  localStorage.setItem(IA_CONFIG_STORAGE_KEY, JSON.stringify(segura));
+}
+
+function guardarApiKeySesion(apiKey) {
+  if((apiKey || '').trim()) {
+    sessionStorage.setItem(IA_API_KEY_SESSION_KEY, apiKey.trim());
+  } else {
+    sessionStorage.removeItem(IA_API_KEY_SESSION_KEY);
+  }
+}
+
+function migrarConfigIAInsegura() {
+  const cfg = obtenerConfigIALocal();
+  if(!cfg || !cfg.api_key) return;
+  if(!obtenerApiKeySesion()) {
+    guardarApiKeySesion(cfg.api_key);
+  }
+  guardarConfigIALocal(cfg);
+}
+
+function obtenerMetaLegal() {
+  try {
+    return JSON.parse(localStorage.getItem(LEGAL_ACCEPTANCE_STORAGE_KEY) || 'null');
+  } catch(_) {
+    return null;
+  }
+}
+
+function guardarMetaLegal(aceptado) {
+  if(!aceptado) {
+    localStorage.removeItem(LEGAL_ACCEPTANCE_STORAGE_KEY);
+    localStorage.removeItem('docpresupuesto_legal_v1');
+    return;
+  }
+  const payload = {
+    accepted: true,
+    accepted_at: new Date().toISOString(),
+    terms_version: LEGAL_TERMS_VERSION
+  };
+  localStorage.setItem(LEGAL_ACCEPTANCE_STORAGE_KEY, JSON.stringify(payload));
+  localStorage.setItem('docpresupuesto_legal_v1', 'accepted'); // compat legado
+}
+
+function estaLegalAceptado() {
+  const meta = obtenerMetaLegal();
+  if(meta && meta.accepted) return true;
+  return localStorage.getItem('docpresupuesto_legal_v1') === 'accepted';
+}
+
 let estado = {
   proyectos: [],
   proyectoActual: null,
-  configIA: JSON.parse(localStorage.getItem('docpresupuesto_ia') || 'null') || LOCAL_IA_CONFIG,
-  legalAceptado: localStorage.getItem('docpresupuesto_legal_v1') === 'accepted',
+  configIA: null,
+  legalAceptado: estaLegalAceptado(),
   backendOnline: false,
   backendLastCheck: '',
   onboardingOmitido: localStorage.getItem('docpresupuesto_onboarding_omitido') === '1',
@@ -1205,7 +1277,7 @@ function aceptarTerminos() {
     return;
   }
   estado.legalAceptado = true;
-  localStorage.setItem('docpresupuesto_legal_v1', 'accepted');
+  guardarMetaLegal(true);
   const chkNuevo = document.getElementById('legalAceptadoNuevoProyecto');
   if(chkNuevo) chkNuevo.checked = true;
   cerrarModal('modalLegal');
@@ -1216,7 +1288,7 @@ function aceptarTerminos() {
 
 function rechazarTerminos() {
   estado.legalAceptado = false;
-  localStorage.removeItem('docpresupuesto_legal_v1');
+  guardarMetaLegal(false);
   actualizarEstadoLegalUI();
   alert('Necesitas aceptar los términos para operar funcionalidades críticas.');
   cerrarModal('modalLegal');
@@ -1311,20 +1383,30 @@ function guardarConfigIA() {
   };
   if(!config.api_key.trim()){alert('Ingresa tu API Key'); return;}
   estado.configIA = config;
-  localStorage.setItem('docpresupuesto_ia', JSON.stringify(config));
+  guardarConfigIALocal(config);
+  guardarApiKeySesion(config.api_key);
   cerrarModal('modalConfig');
   actualizarStatusIA();
   renderChecklistOnboarding();
-  mostrarAlerta('alertArea','success','Configuración de IA guardada ✓');
+  mostrarAlerta('alertArea','success','Configuración de IA guardada en sesión local segura ✓');
 }
 function cargarConfigIA() {
-  if(estado.configIA) {
-    document.getElementById('cfgProvider').value = estado.configIA.provider||'openai';
+  const localCfg = obtenerConfigIALocal();
+  const sessionApiKey = obtenerApiKeySesion();
+  const baseCfg = localCfg || LOCAL_IA_CONFIG || null;
+  if(baseCfg) {
+    estado.configIA = {
+      provider: baseCfg.provider || 'openai',
+      model: baseCfg.model || '',
+      api_key: sessionApiKey || baseCfg.api_key || ''
+    };
+    document.getElementById('cfgProvider').value = estado.configIA.provider || 'openai';
     actualizarModelosPorProveedor();
-    document.getElementById('cfgModel').value = estado.configIA.model||'gpt-4o';
-    document.getElementById('cfgApiKey').value = estado.configIA.api_key||'';
+    document.getElementById('cfgModel').value = estado.configIA.model || 'gpt-4o';
+    document.getElementById('cfgApiKey').value = estado.configIA.api_key || '';
     actualizarStatusIA();
-    localStorage.setItem('docpresupuesto_ia', JSON.stringify(estado.configIA));
+    guardarConfigIALocal(estado.configIA);
+    if(estado.configIA.api_key) guardarApiKeySesion(estado.configIA.api_key);
   }
 }
 function actualizarStatusIA() {
@@ -2778,6 +2860,7 @@ function cambiarTab(e, tabId) {
    INIT
 ═══════════════════════════════════════════════════════════════════════════ */
 document.addEventListener('DOMContentLoaded', ()=>{
+  migrarConfigIAInsegura();
   cargarEscenariosSimulacion();
   sincronizarInputsNombresEscenario();
   cargarConfigIA();
