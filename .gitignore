@@ -5,3 +5,8 @@ dist/
 __pycache__/
 *.pyc
 *.spec
+
+# Datos y artefactos locales (no subir a GitHub)
+docpresupuesto.db
+uploads/
+exports/

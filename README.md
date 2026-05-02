@@ -24,10 +24,12 @@ DocPresupuestoAI analiza automáticamente las **bases técnicas y administrativa
 chmod +x iniciar.sh && ./iniciar.sh
 ```
 
-### 2. Configurar API Key
-- Abre la interfaz en `frontend/index.html`
-- Haz clic en **"Configurar IA"**
-- Ingresa tu API Key de **OpenAI** o **Anthropic**
+### 2. Configurar IA (API Key)
+- Con el backend en marcha, abre la app en el navegador (se abre sola con `./iniciar.sh`) o en ventana de escritorio (`./desktop/ejecutar_desktop.sh`).
+- Haz clic en **"Configurar IA"** y elige proveedor:
+  - **Gratis / local:** [Gemini](https://aistudio.google.com/app/apikey), [Groq](https://console.groq.com/keys), **Ollama** en tu equipo (sin clave).
+  - **Con API key:** [DeepSeek](https://platform.deepseek.com/api_keys), OpenAI, ZAI (GLM), Anthropic (Claude).
+- Opcional: copia `frontend/local-config.example.js` a `frontend/local-config.js` (está en `.gitignore`) para valores por defecto de proveedor/modelo.
 
 ### 3. Crear un proyecto
 - Haz clic en **"Nuevo Proyecto"**
@@ -74,17 +76,22 @@ Salida esperada: `dist/DocPresupuestoAI.app`
 DocPresupuestoAI/
 ├── backend/
 │   ├── main.py          # API FastAPI
-│   ├── ai_engine.py     # Motor de IA (OpenAI/Anthropic)
+│   ├── ai_engine.py     # Motor de IA (multi-proveedor)
 │   ├── ai_prompts.py    # Prompts especializados
 │   ├── extractor.py     # Extracción de texto
 │   └── generator.py     # Generador PDF/Excel
 ├── database/
-│   └── models.py        # Base de datos SQLite
+│   └── models.py        # Modelos SQLite
+├── desktop/
+│   ├── app_desktop.py   # Ventana nativa (pywebview)
+│   └── ejecutar_desktop.sh
 ├── frontend/
-│   └── index.html       # Interfaz web completa
-├── uploads/             # Documentos subidos
-├── exports/             # Documentos generados
-└── iniciar.sh           # Script de inicio
+│   └── index.html       # Interfaz web
+├── requirements.txt     # Dependencias Python backend
+├── uploads/             # Documentos subidos (local, no versionar)
+├── exports/             # Salidas generadas (local)
+├── iniciar.sh           # Arranque navegador + backend
+└── diagnostico.sh       # Chequeo rápido del entorno
 ```
 
 ---
@@ -92,7 +99,7 @@ DocPresupuestoAI/
 ## Tecnologías
 
 - **Backend**: FastAPI + Python 3
-- **IA**: OpenAI GPT-4o / Anthropic Claude 3.5
+- **IA**: OpenAI, Anthropic, Gemini, Groq, DeepSeek, ZAI (GLM), Ollama local (OpenAI-compatible)
 - **PDF**: ReportLab (diseño profesional)
 - **Excel**: OpenPyXL
 - **BD**: SQLite

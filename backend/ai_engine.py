@@ -39,6 +39,11 @@ def _auth_message(provider: str) -> str:
             "Groq respondió 401 (API key inválida o revocada). "
             "Crea una clave gratuita en https://console.groq.com/keys y pégala en «Configurar IA»."
         )
+    if provider == "deepseek":
+        return (
+            "DeepSeek respondió 401 (API key inválida o revocada). "
+            "Genera una clave en https://platform.deepseek.com/api_keys y pégala en «Configurar IA»."
+        )
     if provider == "ollama":
         return (
             "No se pudo autenticar con Ollama (401). "
@@ -72,6 +77,11 @@ class AIEngine:
                 api_key=api_key,
                 base_url=os.getenv("GROQ_BASE_URL", "https://api.groq.com/openai/v1"),
             )
+        elif provider == "deepseek":
+            # DeepSeek: API compatible con OpenAI (https://api.deepseek.com).
+            self.model = model or "deepseek-chat"
+            _base = (os.getenv("DEEPSEEK_BASE_URL") or "https://api.deepseek.com").strip().rstrip("/")
+            self.client = openai.OpenAI(api_key=api_key, base_url=_base)
         elif provider == "ollama":
             # Ollama local (gratis); OpenAI-compatible en /v1
             self.model = model or "llama3.2"
@@ -97,7 +107,7 @@ class AIEngine:
         else:
             raise ValueError(
                 f"Proveedor de IA no soportado: {provider!r}. "
-                "Usa: openai, zai, groq, ollama, anthropic o gemini."
+                "Usa: openai, zai, groq, deepseek, ollama, anthropic o gemini."
             )
 
     def _call_gemini(self, prompt: str, max_tokens: int) -> str:
@@ -137,7 +147,7 @@ class AIEngine:
             if self.provider == "gemini":
                 return self._call_gemini(prompt, max_tokens)
 
-            if self.provider in {"openai", "zai", "groq", "ollama"}:
+            if self.provider in {"openai", "zai", "groq", "deepseek", "ollama"}:
                 response = self.client.chat.completions.create(
                     model=self.model,
                     messages=[{"role": "user", "content": prompt}],

@@ -35,10 +35,14 @@ echo "[2/6] Archivos clave"
 [[ -f "backend/main.py" ]] && check_ok "backend/main.py" || check_err "Falta backend/main.py"
 
 echo ""
-echo "[3/6] Dependencias Python críticas"
+echo "[3/6] Dependencias Python (backend + escritorio)"
 if python3 - <<'PY'
 import importlib.util
-mods = ["fastapi", "uvicorn", "webview", "sqlalchemy"]
+mods = [
+    "fastapi", "uvicorn", "openai", "anthropic", "google.generativeai",
+    "pdfplumber", "docx", "reportlab", "openpyxl", "sqlalchemy",
+    "aiofiles", "jinja2", "webview",
+]
 missing = [m for m in mods if importlib.util.find_spec(m) is None]
 if missing:
     print("MISSING:" + ",".join(missing))
@@ -46,10 +50,11 @@ if missing:
 print("OK")
 PY
 then
-  check_ok "Dependencias críticas instaladas"
+  check_ok "Dependencias instaladas (alineado con requirements.txt + escritorio)"
 else
-  check_warn "Faltan dependencias críticas (revisa salida anterior)"
+  check_warn "Faltan módulos; ejecuta: pip3 install -r requirements.txt && pip3 install -r desktop/requirements-desktop.txt"
 fi
+[[ -f "requirements.txt" ]] && check_ok "requirements.txt presente" || check_err "Falta requirements.txt"
 
 echo ""
 echo "[4/6] Estado backend local (/health)"

@@ -39,7 +39,7 @@ Estado permitido: Pendiente | En curso | Aprobado | Rechazado
 
 | ID | Caso de prueba | Responsable | Evidencia | Estado | Observaciones |
 |---|---|---|---|---|---|
-| A1 | Backend inicia con `./iniciar.sh` |  |  |  |  |
+| A1 | Backend inicia con `./iniciar.sh` o `./desktop/ejecutar_desktop.sh` |  |  |  |  |
 | A2 | `GET /health` responde `status=ok` |  |  |  |  |
 | A3 | Frontend carga sin error critico |  |  |  |  |
 | B1 | Configuracion IA guardada y visible en UI |  |  |  |  |

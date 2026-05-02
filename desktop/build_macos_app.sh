@@ -17,6 +17,7 @@ echo "Version: ${APP_VERSION}"
 echo "Developer: ${DEVELOPER_NAME}"
 
 python3 -m pip install pyinstaller -q
+python3 -m pip install -r requirements.txt -q
 python3 -m pip install -r desktop/requirements-desktop.txt -q
 
 pyinstaller \

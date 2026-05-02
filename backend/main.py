@@ -168,7 +168,7 @@ class ConfigIA(BaseModel):
             raise ValueError(
                 "Se requiere API key para este proveedor. "
                 "Opciones gratuitas: Groq (console.groq.com), Gemini (Google AI Studio) "
-                "u Ollama en tu equipo (sin clave)."
+                "u Ollama en tu equipo (sin clave). DeepSeek y otros requieren clave en su consola."
             )
         return self
 
@@ -764,7 +764,7 @@ async def subir_documento(
     if (provider or "").strip() != "ollama" and not (api_key or "").strip():
         raise HTTPException(
             status_code=400,
-            detail="Falta API key. Usa Groq o Gemini (clave gratuita) o elige Ollama si tienes el modelo en tu PC.",
+            detail="Falta API key. Usa Groq o Gemini (clave gratuita), DeepSeek (platform.deepseek.com) u Ollama local.",
         )
 
     codigo_normalizado = _normalizar_codigo_licitacion(codigo_licitacion)

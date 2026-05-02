@@ -385,7 +385,7 @@ tfoot td{padding:10px 14px;color:var(--blanco);font-weight:700;}
 <div class="modal-overlay" id="modalConfig">
   <div class="modal">
     <h3>⚙️ Configuración de IA</h3>
-    <p><strong>Sin costo de API (con límites):</strong> <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer">Gemini</a> (Google AI Studio), <a href="https://console.groq.com/keys" target="_blank" rel="noopener noreferrer">Groq</a> o <strong>Ollama</strong> en tu Mac (modelo local). OpenAI / ZAI / Claude suelen ser de pago.</p>
+    <p><strong>Sin costo de API (con límites):</strong> <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer">Gemini</a> (Google AI Studio), <a href="https://console.groq.com/keys" target="_blank" rel="noopener noreferrer">Groq</a> o <strong>Ollama</strong> en tu Mac (modelo local). <a href="https://platform.deepseek.com/api_keys" target="_blank" rel="noopener noreferrer">DeepSeek</a>, OpenAI, ZAI y Claude suelen ser de pago (con créditos o suscripción).</p>
     <div class="form-grid">
       <div class="form-group">
         <label>Proveedor</label>
@@ -394,6 +394,7 @@ tfoot td{padding:10px 14px;color:var(--blanco);font-weight:700;}
           <option value="groq">⚡ Groq (gratis con cuota)</option>
           <option value="ollama">🦙 Ollama (local, sin costo API)</option>
           <option value="openai">🤖 OpenAI (GPT)</option>
+          <option value="deepseek">🔷 DeepSeek (API oficial)</option>
           <option value="zai">⚡ ZAI (GLM)</option>
           <option value="anthropic">🧠 Anthropic (Claude)</option>
         </select>
@@ -1209,6 +1210,8 @@ function actualizarHintApiKey() {
     el.textContent = 'Groq: clave gratuita en console.groq.com/keys (requiere cuenta).';
   } else if(prov === 'gemini') {
     el.textContent = 'Gemini: clave gratuita con cuota en Google AI Studio (enlace arriba).';
+  } else if(prov === 'deepseek') {
+    el.textContent = 'DeepSeek: crea una API key en platform.deepseek.com/api_keys y pégala aquí.';
   } else {
     el.textContent = '';
   }
@@ -1625,6 +1628,10 @@ function actualizarModelosPorProveedor() {
     [['llama-3.3-70b-versatile','Llama 3.3 70B (recomendado)'],['llama-3.1-8b-instant','Llama 3.1 8B (rápido)'],['mixtral-8x7b-32768','Mixtral 8x7B'],['gemma2-9b-it','Gemma2 9B'],['openai/gpt-oss-20b','GPT-OSS 20B']].forEach(([v,l])=>{
       sel.innerHTML += `<option value="${v}">${l}</option>`;
     });
+  } else if (prov==='deepseek') {
+    [['deepseek-chat','DeepSeek Chat (recomendado)'],['deepseek-reasoner','DeepSeek Reasoner (cadena de pensamiento)']].forEach(([v,l])=>{
+      sel.innerHTML += `<option value="${v}">${l}</option>`;
+    });
   } else if (prov==='ollama') {
     [
       ['deepseek-v4-pro:cloud','DeepSeek V4 Pro :cloud (API puede exigir suscripción Ollama)'],
@@ -1682,6 +1689,7 @@ function cargarConfigIA() {
       : prov === 'zai' ? 'glm-4.5-air'
       : prov === 'anthropic' ? 'claude-3-5-sonnet-20241022'
       : prov === 'groq' ? 'llama-3.3-70b-versatile'
+      : prov === 'deepseek' ? 'deepseek-chat'
       : prov === 'ollama' ? 'llama3.2'
       : 'gpt-4o';
     let m = (estado.configIA.model || '').trim() || defMod;
@@ -1690,6 +1698,7 @@ function cargarConfigIA() {
       (prov === 'zai' && m.startsWith('glm-')) ||
       (prov === 'anthropic' && m.startsWith('claude-')) ||
       (prov === 'groq' && (m.includes('llama') || m.includes('mixtral') || m.includes('gemma') || m.startsWith('openai/'))) ||
+      (prov === 'deepseek' && m.startsWith('deepseek-')) ||
       (prov === 'ollama' && m.length > 1 && !m.startsWith('gpt-') && !m.startsWith('claude-') && !m.startsWith('glm-') && !m.startsWith('gemini-')) ||
       (prov === 'openai' && (m.startsWith('gpt-') || m.startsWith('o1')));
     if (!ok) m = defMod;
@@ -1707,6 +1716,7 @@ function actualizarStatusIA() {
       : estado.configIA.provider==='zai' ? 'ZAI'
       : estado.configIA.provider==='gemini' ? 'Gemini'
       : estado.configIA.provider==='groq' ? 'Groq'
+      : estado.configIA.provider==='deepseek' ? 'DeepSeek'
       : estado.configIA.provider==='ollama' ? 'Ollama'
       : 'Claude';
     document.getElementById('sidebarIAStatus').textContent = `IA: ${prov} ✓`;
@@ -2214,7 +2224,7 @@ async function subirDocumento() {
     return;
   }
   if(!configIaLista()){
-    mostrarAlerta('alertNuevo','warning','Configura la IA (Groq o Gemini gratis, u Ollama local)');
+    mostrarAlerta('alertNuevo','warning','Configura la IA (Groq o Gemini gratis, DeepSeek con API key, u Ollama local)');
     abrirModal('modalConfig');return;
   }
   
@@ -3434,7 +3444,7 @@ async function generarDocumento() {
   if(!exigirAceptacionLegal('Debes aceptar términos legales antes de generar documentos.')) return;
   if(!estado.tipoDocSeleccionado){mostrarAlerta('alertGenerar','error','Selecciona el tipo de documento');return;}
   if(!configIaLista()){
-    mostrarAlerta('alertGenerar','warning','Configura la IA (Groq o Gemini gratis, u Ollama local)');
+    mostrarAlerta('alertGenerar','warning','Configura la IA (Groq o Gemini gratis, DeepSeek con API key, u Ollama local)');
     abrirModal('modalConfig');return;
   }
   
@@ -3847,7 +3857,7 @@ async function enviarConsulta() {
   if(!pregunta) return;
   if(!proyId){alert('Selecciona un proyecto primero');return;}
   if(!configIaLista()){
-    alert('Configura la IA (Groq o Gemini gratis, u Ollama local)');
+    alert('Configura la IA (Groq o Gemini gratis, DeepSeek con API key, u Ollama local)');
     abrirModal('modalConfig');return;
   }
   

@@ -1,4 +1,4 @@
-# Backend y scripts locales (ver también iniciar.sh / desktop)
+# Backend y scripts locales (iniciar.sh, desktop/ejecutar_desktop.sh, build_macos_app.sh)
 fastapi
 uvicorn[standard]
 python-multipart
